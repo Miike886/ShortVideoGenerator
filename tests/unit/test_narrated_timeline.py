@@ -32,7 +32,7 @@ def test_timeline_uses_audio_duration_and_preserves_three_scene_texts() -> None:
     ]
 
 
-def test_timeline_requires_exactly_three_scenes() -> None:
+def test_timeline_accepts_a_single_scene() -> None:
     script = VideoScript(
         title="Invalid fixture",
         hook="Hook",
@@ -47,9 +47,6 @@ def test_timeline_requires_exactly_three_scenes() -> None:
         closing="Closing",
     )
 
-    try:
-        fit_script_to_audio(script, 3)
-    except ValueError as error:
-        assert "exactly three" in str(error)
-    else:
-        raise AssertionError("Expected the timeline planner to reject a non-three-scene script")
+    fitted = fit_script_to_audio(script, 3)
+
+    assert fitted.scenes[0].duration_seconds == 3

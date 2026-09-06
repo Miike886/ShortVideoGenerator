@@ -55,6 +55,7 @@ class ArtifactType(StrEnum):
     VOICE = "voice"
     TIMELINE = "timeline"
     CHARACTER_REFERENCE = "character_reference"
+    CAPTION_ALIGNMENT = "caption_alignment"
     IMAGE = "image"
     VIDEO_CLIP = "video_clip"
     SUBTITLE = "subtitle"

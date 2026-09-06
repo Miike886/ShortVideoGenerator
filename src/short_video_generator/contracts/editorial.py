@@ -1,7 +1,11 @@
+from typing import Literal
+
 from pydantic import Field, model_validator
 
 from .characters import PresenterInstruction
 from .common import Contract
+
+SceneRole = Literal["hook", "context", "fact", "development", "payoff", "conclusion"]
 
 
 class EditorialBrief(Contract):
@@ -24,6 +28,7 @@ class ScriptScene(Contract):
     visual_query: str = Field(default="", max_length=500)
     duration_seconds: float = Field(gt=0, le=60)
     presenter: PresenterInstruction | None = None
+    role: SceneRole = "fact"
 
 
 class VideoScript(Contract):

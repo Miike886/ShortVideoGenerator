@@ -61,7 +61,7 @@ def test_renderer_loops_and_crops_video_assets(monkeypatch, tmp_path) -> None:
         GeneratedAsset(
             artifact_type=ArtifactType.SUBTITLE,
             relative_path=Path("assets/subtitles.srt"),
-            media_type="application/x-subrip",
+            media_type="text/x-ssa",
         ),
     )
 
@@ -102,3 +102,5 @@ def test_renderer_loops_and_crops_video_assets(monkeypatch, tmp_path) -> None:
     assert "format=rgba" in filter_complex
     assert "fade=t=in" in filter_complex
     assert "overlay=x=W-w-72:y=H-h-320" in filter_complex
+    assert "subtitles=" in filter_complex
+    assert "force_style" not in filter_complex

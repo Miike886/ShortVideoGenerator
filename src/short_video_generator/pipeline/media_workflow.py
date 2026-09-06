@@ -5,9 +5,11 @@ from pathlib import Path
 from short_video_generator.contracts import (
     CharacterAssetReference,
     GeneratedAsset,
+    PresenterInstruction,
     RenderRequest,
     TextToSpeechOptions,
     VideoScript,
+    WordTiming,
 )
 from short_video_generator.domain.enums import ArtifactType, ProductionStatus
 from short_video_generator.domain.transitions import require_transition
@@ -23,6 +25,7 @@ from short_video_generator.pipeline.steps import StepExecutor
 from short_video_generator.pipeline.timeline import fit_script_to_audio
 from short_video_generator.providers.ports import (
     AssetProvider,
+    CaptionAlignmentProvider,
     CharacterAssetProvider,
     Renderer,
     TextToSpeechProvider,
@@ -31,7 +34,6 @@ from short_video_generator.providers.ports import (
 
 class NarratedMediaWorkflow:
     timeline_version = "word-weighted-v1"
-    subtitle_version = "scene-srt-v1"
     presenter_version = "deterministic-presenter-v1"
 
     def __init__(
@@ -43,7 +45,9 @@ class NarratedMediaWorkflow:
         language: str,
         audio_probe: AudioProbe,
         assets: AssetProvider,
+        caption_alignment: CaptionAlignmentProvider,
         characters: CharacterAssetProvider,
+        default_character_id: str,
         subtitles: SubtitleProvider,
         renderer: Renderer,
     ) -> None:
@@ -54,7 +58,9 @@ class NarratedMediaWorkflow:
         self.language = language
         self.audio_probe = audio_probe
         self.assets = assets
+        self.caption_alignment = caption_alignment
         self.characters = characters
+        self.default_character_id = default_character_id
         self.subtitles = subtitles
         self.renderer = renderer
 
@@ -63,7 +69,8 @@ class NarratedMediaWorkflow:
         self._plan_timeline(execution, production, audio, work)
         self._resolve_presenters(execution, production, work)
         self._generate_visuals(execution, production, work)
-        self._generate_subtitles(execution, production, work)
+        alignment = self._align_captions(execution, production, audio, work)
+        self._generate_subtitles(execution, production, alignment, work)
         return self._render_video(execution, production, work)
 
     def _generate_audio(
@@ -309,20 +316,20 @@ class NarratedMediaWorkflow:
         )
 
     def _generate_subtitles(
-        self, execution: ExecutionState, production: ProductionState, work: Path
+        self,
+        execution: ExecutionState,
+        production: ProductionState,
+        alignment: ArtifactState,
+        work: Path,
     ) -> None:
         script = VideoScript.model_validate(production.script)
+        words = _word_timings(alignment)
         fingerprint = _fingerprint(
             {
-                "scenes": [
-                    {
-                        "order": scene.order,
-                        "narration": scene.narration,
-                        "duration_seconds": scene.duration_seconds,
-                    }
-                    for scene in script.scenes
-                ],
-                "provider": self.subtitle_version,
+                "alignment_sha256": alignment.sha256,
+                "words": [word.model_dump(mode="json") for word in words],
+                "provider": self.subtitles.provider_name,
+                "provider_version": self.subtitles.provider_version,
             }
         )
         subtitle = _artifact(execution, ArtifactType.SUBTITLE)
@@ -336,7 +343,7 @@ class NarratedMediaWorkflow:
             return
 
         def action() -> None:
-            draft = self.subtitles.create(script, work)
+            draft = self.subtitles.create(script, words, work)
             stored = self.store.promote(
                 work / draft.relative_path,
                 self.store.asset_directory(production.id) / draft.relative_path.name,
@@ -358,22 +365,96 @@ class NarratedMediaWorkflow:
             fingerprint,
         )
 
+    def _align_captions(
+        self,
+        execution: ExecutionState,
+        production: ProductionState,
+        audio: ArtifactState,
+        work: Path,
+    ) -> ArtifactState:
+        script = VideoScript.model_validate(production.script)
+        audio_path = self.store.resolve(audio.relative_path)
+        text = " ".join(scene.narration for scene in script.scenes)
+        fingerprint = _fingerprint(
+            {
+                "audio_sha256": audio.sha256,
+                "text": text,
+                "provider": self.caption_alignment.provider_name,
+                "provider_version": self.caption_alignment.provider_version,
+            }
+        )
+        alignment = _artifact(execution, ArtifactType.CAPTION_ALIGNMENT)
+        if (
+            alignment is not None
+            and alignment.metadata.get("input_fingerprint") == fingerprint
+            and self.steps.completed(
+                execution, PipelineStep.ALIGN_CAPTIONS, production.id, fingerprint
+            )
+        ):
+            return alignment
+
+        def action() -> ArtifactState:
+            result = self.caption_alignment.align(
+                audio_path, script, float(audio.metadata["duration_seconds"])
+            )
+            alignment_path = self.store.write_text(
+                work, "alignment.json", result.model_dump_json(indent=2)
+            )
+            stored = self.store.promote(
+                alignment_path,
+                self.store.asset_directory(production.id) / alignment_path.name,
+            )
+            return _upsert_artifact(
+                execution,
+                ArtifactType.CAPTION_ALIGNMENT,
+                "application/json",
+                result.model_dump(mode="json")
+                | {
+                    "input_fingerprint": fingerprint,
+                    "word_count": len(result.words),
+                },
+                stored,
+            )
+
+        return self.steps.run(
+            execution,
+            PipelineStep.ALIGN_CAPTIONS,
+            production.id,
+            action,
+            fingerprint,
+        )
+
     def _render_video(
         self, execution: ExecutionState, production: ProductionState, work: Path
     ) -> Path:
         render = _artifact(execution, ArtifactType.RENDER)
-        if render is not None:
+        render_fingerprint = _fingerprint(
+            {
+                "script": production.script,
+                "artifacts": [
+                    {
+                        "type": item.artifact_type,
+                        "path": item.relative_path.as_posix(),
+                        "sha256": item.sha256,
+                        "metadata": item.metadata,
+                    }
+                    for item in execution.artifacts
+                    if item.artifact_type != ArtifactType.RENDER
+                ],
+                "renderer": "ffmpeg-presenter-ass-v1",
+            }
+        )
+        if render is not None and render.metadata.get("input_fingerprint") == render_fingerprint:
             return self.store.resolve(render.relative_path)
 
         def action() -> Path:
+            script = VideoScript.model_validate(production.script)
             result = self.renderer.render(
                 RenderRequest(
                     production_id=production.id,
-                    script=VideoScript.model_validate(production.script),
+                    script=script,
                     assets=tuple(_artifact_contracts(execution)),
-                    character_assets=tuple(
-                        self._presenter_assets(VideoScript.model_validate(production.script))
-                    ),
+                    character_assets=tuple(self._presenter_assets(script)),
                 ),
                 work,
             )
@@ -385,7 +466,11 @@ class NarratedMediaWorkflow:
                 execution,
                 ArtifactType.RENDER,
                 "video/mp4",
-                result.render.metadata | {"duration_seconds": result.duration_seconds},
+                result.render.metadata
+                | {
+                    "duration_seconds": result.duration_seconds,
+                    "input_fingerprint": render_fingerprint,
+                },
                 stored,
             )
             _transition(production, ProductionStatus.RENDERED, PipelineStep.RENDER)
@@ -395,9 +480,13 @@ class NarratedMediaWorkflow:
 
     def _presenter_assets(self, script: VideoScript) -> list[CharacterAssetReference]:
         return [
-            self.characters.resolve(scene.presenter, scene.order)
+            self.characters.resolve(
+                scene.presenter
+                or _default_presenter_instruction(scene.role, self.default_character_id),
+                scene.order,
+            )
             for scene in script.scenes
-            if scene.presenter is not None
+            if scene.presenter is None or scene.presenter.visibility
         ]
 
 
@@ -423,6 +512,31 @@ def _artifact_contracts(execution: ExecutionState) -> list[GeneratedAsset]:
         )
         for item in execution.artifacts
     ]
+
+
+def _word_timings(alignment: ArtifactState) -> tuple[WordTiming, ...]:
+    words = alignment.metadata.get("words")
+    if not isinstance(words, list):
+        raise ValueError("Caption alignment artifact is missing word timings")
+    return tuple(WordTiming.model_validate(word) for word in words)
+
+
+def _default_presenter_instruction(role: str, character_id: str) -> PresenterInstruction:
+    role_map = {
+        "hook": ("explaining", "bottom_right", 0.32),
+        "context": ("thinking", "bottom_left", 0.3),
+        "fact": ("surprised", "bottom_right", 0.32),
+        "development": ("pointing_left", "bottom_right", 0.3),
+        "payoff": ("skeptical", "bottom_left", 0.3),
+        "conclusion": ("happy", "bottom_left", 0.3),
+    }
+    pose, position, scale = role_map.get(role, role_map["fact"])
+    return PresenterInstruction(
+        character_id=character_id,
+        pose=pose,
+        position=position,
+        scale=scale,
+    )
 
 
 def _upsert_artifact(

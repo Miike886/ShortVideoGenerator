@@ -21,6 +21,8 @@ def run() -> None:
     parser.add_argument("--tts-rate", type=int)
     parser.add_argument("--tts-volume", type=int)
     parser.add_argument("--asset-provider", choices=("fake", "pexels"))
+    parser.add_argument("--caption-alignment-provider", choices=("fake", "whisperx"))
+    parser.add_argument("--default-character-id")
     arguments = parser.parse_args()
 
     discovered = Settings.local(arguments.project_root)
@@ -44,6 +46,13 @@ def run() -> None:
         ),
         asset_provider=arguments.asset_provider or discovered.asset_provider,
         pexels_api_key=discovered.pexels_api_key,
+        default_character_id=arguments.default_character_id or discovered.default_character_id,
+        caption_alignment_provider=(
+            arguments.caption_alignment_provider
+            or discovered.caption_alignment_provider
+        ),
+        whisperx_model=discovered.whisperx_model,
+        whisperx_device=discovered.whisperx_device,
     )
     production_input = ManualProductionInput(
         topic=arguments.topic,

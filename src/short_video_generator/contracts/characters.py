@@ -43,6 +43,7 @@ class PresenterInstruction(Contract):
     scale: float | None = Field(default=None, ge=0.1, le=0.6)
     entrance: PresenterMotion = "fade"
     exit: PresenterMotion = "fade"
+    visibility: bool = True
 
 
 class CharacterAssetReference(Contract):
@@ -51,6 +52,8 @@ class CharacterAssetReference(Contract):
     character_name: str = Field(min_length=1, max_length=120)
     character_version: str = Field(min_length=1, max_length=40)
     pose: str = Field(min_length=1, max_length=80)
+    requested_pose: str | None = Field(default=None, max_length=80)
+    fallback_reason: str | None = Field(default=None, max_length=200)
     asset_path: Path
     asset_relative_path: Path
     media_type: str = Field(default="image/png")

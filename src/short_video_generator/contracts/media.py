@@ -4,6 +4,7 @@ from pydantic import Field, field_validator
 
 from short_video_generator.domain.enums import ArtifactType
 
+from .captions import CaptionGroup
 from .characters import CharacterAssetReference
 from .common import Contract
 from .editorial import VideoScript
@@ -37,6 +38,7 @@ class RenderRequest(Contract):
     script: VideoScript
     assets: tuple[GeneratedAsset, ...]
     character_assets: tuple[CharacterAssetReference, ...] = ()
+    caption_groups: tuple[CaptionGroup, ...] = ()
     template: VideoTemplate = Field(default_factory=VideoTemplate)
 
 

@@ -6,6 +6,7 @@ from short_video_generator.contracts import (
     LocalFileDraft,
     ValidationReport,
     VideoScript,
+    WordTiming,
 )
 from short_video_generator.domain.enums import ProductionStatus, ReviewDecision
 from short_video_generator.pipeline.models import (
@@ -43,7 +44,15 @@ class ArtifactStore(Protocol):
 
 
 class SubtitleProvider(Protocol):
-    def create(self, script: VideoScript, destination: Path) -> LocalFileDraft: ...
+    provider_name: str
+    provider_version: str
+
+    def create(
+        self,
+        script: VideoScript,
+        words: tuple[WordTiming, ...],
+        destination: Path,
+    ) -> LocalFileDraft: ...
 
 
 class MediaValidator(Protocol):

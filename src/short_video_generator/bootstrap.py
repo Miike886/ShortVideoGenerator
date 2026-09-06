@@ -20,6 +20,10 @@ from short_video_generator.pipeline.orchestrator import ManualPipeline
 from short_video_generator.pipeline.review import ReviewService
 from short_video_generator.pipeline.steps import StepExecutor
 from short_video_generator.providers.assets import FakeAssetProvider, PexelsAssetProvider
+from short_video_generator.providers.captions import (
+    FakeCaptionAlignmentProvider,
+    WhisperXCaptionAlignmentProvider,
+)
 from short_video_generator.providers.characters import LocalCharacterAssetProvider
 from short_video_generator.providers.deterministic import (
     DeterministicEditorialProvider,
@@ -28,6 +32,7 @@ from short_video_generator.providers.deterministic import (
 from short_video_generator.providers.evaluation import DeterministicCandidateEvaluator
 from short_video_generator.providers.ports import (
     AssetProvider,
+    CaptionAlignmentProvider,
     CharacterAssetProvider,
     TextToSpeechProvider,
 )
@@ -40,7 +45,7 @@ from short_video_generator.rendering import (
     FfprobeAudioProbe,
     FfprobeValidator,
 )
-from short_video_generator.rendering.subtitles import BasicSubtitleProvider
+from short_video_generator.rendering.subtitles import AssSubtitleProvider
 from short_video_generator.storage import LocalArtifactStore
 
 
@@ -68,6 +73,7 @@ def build_manual_pipeline(
     production_input: ManualProductionInput | None = None,
     tts_provider: TextToSpeechProvider | None = None,
     asset_provider: AssetProvider | None = None,
+    caption_alignment_provider: CaptionAlignmentProvider | None = None,
     character_provider: CharacterAssetProvider | None = None,
 ) -> ManualPipeline:
     if settings.ffmpeg_path is None:
@@ -81,6 +87,7 @@ def build_manual_pipeline(
     )
     speech = tts_provider or _build_tts_provider(settings)
     assets = asset_provider or _build_asset_provider(settings)
+    captions = caption_alignment_provider or _build_caption_alignment_provider(settings)
     characters = character_provider or LocalCharacterAssetProvider(
         settings.project_root / "assets" / "characters"
     )
@@ -101,8 +108,10 @@ def build_manual_pipeline(
         language=production_input.language,
         audio_probe=FfprobeAudioProbe(settings.ffprobe_path),
         assets=assets,
+        caption_alignment=captions,
         characters=characters,
-        subtitles=BasicSubtitleProvider(),
+        default_character_id=settings.default_character_id,
+        subtitles=AssSubtitleProvider(),
         renderer=FfmpegRenderer(settings.ffmpeg_path, settings.storage_root),
     )
     topic_hash = hashlib.sha256(
@@ -115,7 +124,9 @@ def build_manual_pipeline(
         canonical_url=f"https://example.test/manual/{topic_hash}",
         source_payload={"manual": True, **production_input.model_dump(mode="json")},
     )
-    fingerprint = _input_fingerprint(production_input, settings, speech, assets, characters)
+    fingerprint = _input_fingerprint(
+        production_input, settings, speech, assets, captions, characters
+    )
     return ManualPipeline(
         repository=repository,
         store=store,
@@ -143,6 +154,9 @@ def default_idempotency_key(
         "tts_volume": settings.tts_volume,
         "asset_provider": settings.asset_provider,
         "default_character_id": settings.default_character_id,
+        "caption_alignment_provider": settings.caption_alignment_provider,
+        "whisperx_model": settings.whisperx_model,
+        "whisperx_device": settings.whisperx_device,
     }
     digest = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -168,11 +182,25 @@ def _build_asset_provider(settings: Settings) -> AssetProvider:
     raise ValueError(f"Unsupported asset provider: {settings.asset_provider}")
 
 
+def _build_caption_alignment_provider(settings: Settings) -> CaptionAlignmentProvider:
+    if settings.caption_alignment_provider == "fake":
+        return FakeCaptionAlignmentProvider()
+    if settings.caption_alignment_provider == "whisperx":
+        return WhisperXCaptionAlignmentProvider(
+            model_name=settings.whisperx_model,
+            device=settings.whisperx_device,
+        )
+    raise ValueError(
+        f"Unsupported caption alignment provider: {settings.caption_alignment_provider}"
+    )
+
+
 def _input_fingerprint(
     production_input: ManualProductionInput,
     settings: Settings,
     speech: TextToSpeechProvider,
     assets: AssetProvider,
+    captions: CaptionAlignmentProvider,
     characters: CharacterAssetProvider,
 ) -> str:
     payload = {
@@ -193,6 +221,12 @@ def _input_fingerprint(
             "provider": characters.provider_name,
             "version": characters.provider_version,
             "default_character_id": settings.default_character_id,
+        },
+        "captions": {
+            "provider": captions.provider_name,
+            "version": captions.provider_version,
+            "whisperx_model": settings.whisperx_model,
+            "whisperx_device": settings.whisperx_device,
         },
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()

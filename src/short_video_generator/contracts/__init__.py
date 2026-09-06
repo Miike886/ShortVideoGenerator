@@ -1,3 +1,4 @@
+from .captions import CaptionAlignmentResult, CaptionGroup, CaptionStyle, WordTiming
 from .characters import CharacterAssetReference, CharacterDefinition, PresenterInstruction
 from .configuration import FixtureSourceDefinition, ManualProductionInput, NicheDefinition
 from .editorial import EditorialBrief, ScriptScene, VideoScript
@@ -12,6 +13,9 @@ __all__ = [
     "AudioProbeResult",
     "CandidateEvaluation",
     "CandidateInput",
+    "CaptionAlignmentResult",
+    "CaptionGroup",
+    "CaptionStyle",
     "CharacterAssetReference",
     "CharacterDefinition",
     "EditorialBrief",
@@ -30,5 +34,6 @@ __all__ = [
     "ValidationReport",
     "VideoScript",
     "VideoTemplate",
+    "WordTiming",
 ]
 from .audio import AudioArtifactMetadata, AudioProbeResult, TextToSpeechOptions

@@ -37,11 +37,14 @@ def test_local_character_provider_fails_for_missing_character() -> None:
         )
 
 
-def test_local_character_provider_fails_for_missing_pose() -> None:
+def test_local_character_provider_falls_back_for_missing_pose() -> None:
     provider = LocalCharacterAssetProvider(Path("assets/characters"))
 
-    with pytest.raises(ValueError, match="does not define pose"):
-        provider.resolve(
-            PresenterInstruction(character_id="byte", pose="moonwalk"),
-            scene_order=1,
-        )
+    reference = provider.resolve(
+        PresenterInstruction(character_id="byte", pose="moonwalk"),
+        scene_order=1,
+    )
+
+    assert reference.pose == "neutral"
+    assert reference.requested_pose == "moonwalk"
+    assert reference.fallback_reason is not None

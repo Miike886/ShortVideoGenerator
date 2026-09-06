@@ -63,7 +63,7 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
     assert second.run_id == first.run_id
     assert second.production_id == first.production_id
     assert tts.calls == 1
-    assert assets.calls == 3
+    assert assets.calls == 5
     changed_pipeline = build_manual_pipeline(
         settings,
         ManualProductionInput(topic="A different topic", language="en"),
@@ -78,8 +78,8 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         assert session.scalar(select(func.count()).select_from(PipelineRunRecord)) == 1
         assert session.scalar(select(func.count()).select_from(TopicCandidateRecord)) == 1
         assert session.scalar(select(func.count()).select_from(ProductionRecord)) == 1
-        assert session.scalar(select(func.count()).select_from(StepRunRecord)) == 13
-        assert session.scalar(select(func.count()).select_from(ArtifactRecord)) == 9
+        assert session.scalar(select(func.count()).select_from(StepRunRecord)) == 14
+        assert session.scalar(select(func.count()).select_from(ArtifactRecord)) == 12
         assert set(session.scalars(select(StepRunRecord.status))) == {StepStatus.COMPLETED}
         step_records = session.scalars(select(StepRunRecord)).all()
         fingerprinted_steps = {
@@ -87,6 +87,7 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
             "plan_timeline",
             "resolve_presenters",
             "generate_assets",
+            "align_captions",
             "generate_subtitles",
         }
         for step in step_records:
@@ -98,23 +99,44 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         render = next(item for item in artifacts if item.type == ArtifactType.RENDER)
         voice = next(item for item in artifacts if item.type == ArtifactType.VOICE)
         timeline = next(item for item in artifacts if item.type == ArtifactType.TIMELINE)
+        alignment = next(item for item in artifacts if item.type == ArtifactType.CAPTION_ALIGNMENT)
         character_reference = next(
             item for item in artifacts if item.type == ArtifactType.CHARACTER_REFERENCE
         )
         subtitle = next(item for item in artifacts if item.type == ArtifactType.SUBTITLE)
-        for artifact in (voice, timeline, character_reference, subtitle):
+        for artifact in (voice, timeline, alignment, character_reference, subtitle, render):
             assert len(artifact.artifact_metadata["input_fingerprint"]) == 64
         production = session.scalar(select(ProductionRecord))
         assert production is not None
+        assert [scene["role"] for scene in production.script["scenes"]] == [
+            "hook",
+            "context",
+            "fact",
+            "development",
+            "conclusion",
+        ]
         presenters = [
             scene["presenter"]
             for scene in production.script["scenes"]
             if scene["presenter"] is not None
         ]
-        assert [presenter["pose"] for presenter in presenters] == ["explaining", "happy"]
+        assert len(presenters) == len(production.script["scenes"])
+        assert [presenter["pose"] for presenter in presenters] == [
+            "explaining",
+            "thinking",
+            "surprised",
+            "pointing_left",
+            "happy",
+        ]
         presenter_refs = character_reference.artifact_metadata["presenters"]
         assert {item["character_id"] for item in presenter_refs} == {"byte"}
-        assert {item["pose"] for item in presenter_refs} == {"explaining", "happy"}
+        assert {item["pose"] for item in presenter_refs} == {
+            "explaining",
+            "thinking",
+            "surprised",
+            "pointing_left",
+            "happy",
+        }
         scene_duration = sum(scene["duration_seconds"] for scene in production.script["scenes"])
         audio_probe = FfprobeAudioProbe(settings.ffprobe_path).inspect(
             settings.storage_root / voice.relative_path
@@ -123,11 +145,14 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         assert timeline.artifact_metadata["duration_seconds"] == pytest.approx(
             audio_probe.duration_seconds
         )
+        assert alignment.artifact_metadata["word_count"] > 0
+        last_word = alignment.artifact_metadata["words"][-1]
+        assert last_word["end_seconds"] == pytest.approx(audio_probe.duration_seconds, abs=0.002)
         subtitle_text = (settings.storage_root / subtitle.relative_path).read_text(encoding="utf-8")
-        assert subtitle_text.count(" --> ") == 3
-        assert _srt_end_seconds(subtitle_text) == pytest.approx(
-            audio_probe.duration_seconds, abs=0.002
-        )
+        assert Path(subtitle.relative_path).suffix == ".ass"
+        assert "Dialogue:" in subtitle_text
+        assert r"{\c&H0000D7FF&}" in subtitle_text
+        assert subtitle.artifact_metadata["caption_group_count"] > 1
         assert (settings.storage_root / render.relative_path).is_file()
         assert all((settings.storage_root / item.relative_path).is_file() for item in artifacts)
         checks = {check["name"]: check for check in production.validation_report["checks"]}
@@ -164,11 +189,3 @@ def _required_executable(environment_name: str, command: str) -> Path:
     if not path.is_file():
         pytest.skip(f"{command} executable does not exist: {path}")
     return path
-
-
-def _srt_end_seconds(content: str) -> float:
-    final_range = [line for line in content.splitlines() if " --> " in line][-1]
-    timestamp = final_range.split(" --> ", maxsplit=1)[1]
-    hours, minutes, remainder = timestamp.split(":")
-    seconds, milliseconds = remainder.split(",")
-    return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(milliseconds) / 1000

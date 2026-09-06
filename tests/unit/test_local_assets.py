@@ -1,9 +1,15 @@
 import hashlib
+from pathlib import Path
 
-from short_video_generator.contracts import ScriptScene, TextToSpeechOptions, VideoScript
+from short_video_generator.contracts import (
+    ScriptScene,
+    TextToSpeechOptions,
+    VideoScript,
+    WordTiming,
+)
 from short_video_generator.providers.assets import FakeAssetProvider
 from short_video_generator.providers.tts import FakeTextToSpeechProvider
-from short_video_generator.rendering.subtitles import create_srt
+from short_video_generator.rendering.subtitles import AssSubtitleProvider
 from short_video_generator.storage import LocalArtifactStore
 
 
@@ -59,10 +65,15 @@ def test_media_audio_and_subtitles_are_local_and_reproducible(tmp_path) -> None:
     second_audio = provider.synthesize(
         "fixture narration", second_audio_path, "en", TextToSpeechOptions()
     )
-    subtitle = create_srt(script, first)
+    words = (
+        WordTiming(word="Primera", start_seconds=0, end_seconds=0.5),
+        WordTiming(word="escena", start_seconds=0.5, end_seconds=1.0),
+    )
+    subtitle = AssSubtitleProvider().create(script, words, first)
 
     assert len(first_images) == len(script.scenes) == 3
-    assert (first / subtitle.relative_path).read_text(encoding="utf-8").count(" --> ") == 3
+    assert Path(subtitle.relative_path).suffix == ".ass"
+    assert "Dialogue:" in (first / subtitle.relative_path).read_text(encoding="utf-8")
     assert _sha256(first / first_images[0].relative_path) == _sha256(
         second / second_images[0].relative_path
     )
