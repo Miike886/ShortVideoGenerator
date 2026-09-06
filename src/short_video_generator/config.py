@@ -18,6 +18,9 @@ class Settings:
     asset_provider: str = "fake"
     pexels_api_key: str | None = None
     default_character_id: str = "byte"
+    caption_alignment_provider: str = "fake"
+    whisperx_model: str = "small"
+    whisperx_device: str = "cpu"
 
     @classmethod
     def local(cls, project_root: Path | None = None) -> "Settings":
@@ -42,6 +45,11 @@ class Settings:
             asset_provider=os.environ.get("ASSET_PROVIDER", "fake"),
             pexels_api_key=os.environ.get("PEXELS_API_KEY") or None,
             default_character_id=os.environ.get("DEFAULT_CHARACTER_ID", "byte"),
+            caption_alignment_provider=os.environ.get(
+                "CAPTION_ALIGNMENT_PROVIDER", "fake"
+            ),
+            whisperx_model=os.environ.get("WHISPERX_MODEL", "small"),
+            whisperx_device=os.environ.get("WHISPERX_DEVICE", "cpu"),
         )
 
     @property

@@ -4,8 +4,8 @@ from short_video_generator.contracts import ScriptScene, VideoScript
 
 
 def fit_script_to_audio(script: VideoScript, duration_seconds: float) -> VideoScript:
-    if len(script.scenes) != 3:
-        raise ValueError("The narrated MVP timeline requires exactly three scenes")
+    if len(script.scenes) < 1:
+        raise ValueError("The narrated timeline requires at least one scene")
     total = Decimal(str(duration_seconds)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
     if total <= 0:
         raise ValueError("Audio duration must be positive")
@@ -13,13 +13,11 @@ def fit_script_to_audio(script: VideoScript, duration_seconds: float) -> VideoSc
     total_words = sum(word_counts)
     if total_words <= 0:
         raise ValueError("Narrated scenes must contain words")
-    first = (total * word_counts[0] / total_words).quantize(
-        Decimal("0.001"), rounding=ROUND_HALF_UP
+    durations = tuple(
+        (total * word_count / total_words).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+        for word_count in word_counts[:-1]
     )
-    second = (total * word_counts[1] / total_words).quantize(
-        Decimal("0.001"), rounding=ROUND_HALF_UP
-    )
-    durations = (first, second, total - first - second)
+    durations += (total - sum(durations),)
     scenes = tuple(
         ScriptScene(
             **scene.model_dump(exclude={"duration_seconds"}),

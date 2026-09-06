@@ -194,8 +194,8 @@ class ManualPipeline:
 
         def action() -> None:
             script = self.editorial.create_script(EditorialBrief.model_validate(production.brief))
-            if len(script.scenes) != 3:
-                raise ValueError("The narrated MVP script must contain exactly three scenes")
+            if not script.scenes:
+                raise ValueError("The narrated script must contain at least one scene")
             self._transition(production, ProductionStatus.SCRIPT_READY, PipelineStep.CREATE_SCRIPT)
             production.script = script.model_dump(mode="json")
 

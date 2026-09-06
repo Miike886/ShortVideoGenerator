@@ -5,6 +5,7 @@ from short_video_generator.contracts import (
     AudioArtifactMetadata,
     CandidateEvaluation,
     CandidateInput,
+    CaptionAlignmentResult,
     CharacterAssetReference,
     EditorialBrief,
     LocalFileDraft,
@@ -62,6 +63,18 @@ class CharacterAssetProvider(Protocol):
     def resolve(
         self, instruction: PresenterInstruction, scene_order: int
     ) -> CharacterAssetReference: ...
+
+
+class CaptionAlignmentProvider(Protocol):
+    provider_name: str
+    provider_version: str
+
+    def align(
+        self,
+        audio_path: Path,
+        script: VideoScript,
+        duration_seconds: float,
+    ) -> CaptionAlignmentResult: ...
 
 
 class Renderer(Protocol):

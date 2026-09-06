@@ -22,20 +22,21 @@ class LocalCharacterAssetProvider:
     ) -> CharacterAssetReference:
         definition_path = self.character_root / instruction.character_id / "character.yaml"
         definition = self._load_definition(definition_path)
-        if instruction.pose not in definition.available_poses:
-            raise ValueError(
-                f"Character {definition.id!r} does not define pose {instruction.pose!r}"
-            )
+        pose = instruction.pose
+        fallback_reason = None
+        if pose not in definition.available_poses:
+            fallback_reason = f"Pose {pose!r} is not available; used default pose"
+            pose = definition.default_pose
         self._validate_required_poses(definition, definition_path.parent)
         asset_relative_path = (
             Path("assets")
             / "characters"
             / definition.id
             / definition.asset_directory
-            / f"{instruction.pose}.png"
+            / f"{pose}.png"
         )
         asset_path = (
-            definition_path.parent / definition.asset_directory / f"{instruction.pose}.png"
+            definition_path.parent / definition.asset_directory / f"{pose}.png"
         ).resolve()
         width, height, has_alpha = _inspect_png(asset_path)
         if not has_alpha:
@@ -48,7 +49,9 @@ class LocalCharacterAssetProvider:
                 "provider_version": self.provider_version,
                 "character_id": definition.id,
                 "character_version": definition.version,
-                "pose": instruction.pose,
+                "pose": pose,
+                "requested_pose": instruction.pose,
+                "fallback_reason": fallback_reason,
                 "definition_sha256": _sha256(definition_path),
                 "asset_sha256": _sha256(asset_path),
                 "position": position,
@@ -62,7 +65,9 @@ class LocalCharacterAssetProvider:
             character_id=definition.id,
             character_name=definition.name,
             character_version=definition.version,
-            pose=instruction.pose,
+            pose=pose,
+            requested_pose=instruction.pose,
+            fallback_reason=fallback_reason,
             asset_path=asset_path,
             asset_relative_path=asset_relative_path,
             width=width,

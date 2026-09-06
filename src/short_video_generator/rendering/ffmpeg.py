@@ -124,8 +124,7 @@ class FfmpegRenderer:
         filter_complex = ";".join(video_chains)
         filter_complex += (
             f";{''.join(concat_inputs)}concat=n={len(visuals)}:v=1:a=0[base]"
-            f";[base]subtitles='{escaped_subtitle_path}':"
-            "force_style='Alignment=2,FontSize=28,MarginV=150,Outline=2,Shadow=0'[video]"
+            f";[base]subtitles='{escaped_subtitle_path}'[video]"
         )
         command.extend(
             [

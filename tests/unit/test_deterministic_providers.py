@@ -30,5 +30,13 @@ def test_editorial_output_is_stable_and_contract_valid() -> None:
 
     assert first_brief == second_brief
     assert first_brief.topic == candidate.title
-    assert len(script.scenes) == 3
+    assert len(script.scenes) == 5
+    assert [scene.role for scene in script.scenes] == [
+        "hook",
+        "context",
+        "fact",
+        "development",
+        "conclusion",
+    ]
+    assert all(scene.presenter is not None for scene in script.scenes)
     assert script.duration_seconds == 30

@@ -11,6 +11,7 @@ class PipelineStep(StrEnum):
     PLAN_TIMELINE = "plan_timeline"
     RESOLVE_PRESENTERS = "resolve_presenters"
     GENERATE_ASSETS = "generate_assets"
+    ALIGN_CAPTIONS = "align_captions"
     GENERATE_SUBTITLES = "generate_subtitles"
     RENDER = "render"
     VALIDATE = "validate"

@@ -7,6 +7,11 @@ in the linked records under `docs/features/`.
 
 ### Added
 
+- Structured five-scene script roles for hook, context, fact, development, and conclusion.
+- `CaptionAlignmentProvider` with deterministic fake known-text word timings and an isolated
+  optional WhisperX adapter path.
+- `caption_alignment` artifacts, ASS dynamic caption generation, caption grouping, and
+  active-word emphasis.
 - Reusable Byte presenter character definition and transparent PNG pose assets.
 - Presenter scene instructions, local character asset loading, pose validation, and
   character-version/content fingerprints.
@@ -22,6 +27,8 @@ in the linked records under `docs/features/`.
 - Manual run configuration includes `DEFAULT_CHARACTER_ID`.
 - The reusable character presenter slice has now been validated with a live Edge TTS + Pexels
   manual run after explicit `.env` authorization.
+- Byte now appears in every generated scene by default, and final render reuse fingerprints
+  include captions, alignment, presenter references, visual assets, and narration inputs.
 
 ## 2026-09-05
 

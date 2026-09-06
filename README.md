@@ -137,6 +137,23 @@ Para agregar otra pose, coloca `<pose>.png` en el directorio del personaje, agr�
 previos. Para usar otro personaje en ejecuciones manuales, crea
 `assets/characters/<id>/character.yaml` y configura `DEFAULT_CHARACTER_ID=<id>`.
 
+## Captions dinámicos
+
+El pipeline genera timestamps de palabra mediante `CaptionAlignmentProvider`. Las pruebas y
+el camino offline usan `fake`, que alinea el texto conocido contra la duración real del audio
+sin descargar modelos ni usar red. WhisperX queda detrás del mismo puerto como integración
+opcional para ejecuciones manuales en entornos donde ya esté instalado.
+
+```dotenv
+CAPTION_ALIGNMENT_PROVIDER=fake
+WHISPERX_MODEL=small
+WHISPERX_DEVICE=cpu
+```
+
+Los subtítulos se escriben como `subtitles.ass`: grupos cortos de palabras, cambios
+progresivos durante la narración y énfasis visual de la palabra activa. El objetivo actual es
+sincronía y legibilidad; la tipografía cinética compleja queda para otro slice.
+
 ## Quality gate de desarrollo
 
 El flujo automático de cierre de desarrollo es:
