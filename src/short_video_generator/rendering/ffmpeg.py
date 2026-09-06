@@ -25,43 +25,53 @@ class FfmpegRenderer:
         self._require_executable()
         destination.mkdir(parents=True, exist_ok=True)
         output = destination / "final.mp4"
-        images = sorted(
-            (asset for asset in request.assets if asset.artifact_type == ArtifactType.IMAGE),
+        visuals = sorted(
+            (
+                asset
+                for asset in request.assets
+                if asset.artifact_type in {ArtifactType.IMAGE, ArtifactType.VIDEO_CLIP}
+            ),
             key=lambda asset: int(asset.metadata["scene_order"]),
         )
         audio = self._one_asset(request, ArtifactType.VOICE)
         subtitles = self._one_asset(request, ArtifactType.SUBTITLE)
-        if len(images) != len(request.script.scenes):
-            raise ValueError("Renderer requires exactly one image for each script scene")
+        if len(visuals) != len(request.script.scenes):
+            raise ValueError("Renderer requires exactly one visual for each script scene")
 
         command = [str(self.executable), "-hide_banner", "-loglevel", "error", "-y"]
-        for image, scene in zip(images, request.script.scenes, strict=True):
+        for visual, scene in zip(visuals, request.script.scenes, strict=True):
+            if visual.artifact_type == ArtifactType.IMAGE:
+                command.extend(["-loop", "1"])
+            else:
+                command.extend(["-stream_loop", "-1"])
             command.extend(
                 [
-                    "-loop",
-                    "1",
                     "-t",
                     str(scene.duration_seconds),
                     "-i",
-                    str(self.storage_root / image.relative_path),
+                    str(self.storage_root / visual.relative_path),
                 ]
             )
         command.extend(["-i", str(self.storage_root / audio.relative_path)])
 
         video_chains = []
         concat_inputs = []
-        for index in range(len(images)):
+        for index, scene in enumerate(request.script.scenes):
             video_chains.append(
-                f"[{index}:v]scale={request.template.width}:{request.template.height},"
-                f"setsar=1,fps={request.template.frames_per_second}[v{index}]"
+                f"[{index}:v]scale={request.template.width}:{request.template.height}:"
+                "force_original_aspect_ratio=increase,"
+                f"crop={request.template.width}:{request.template.height},"
+                f"setsar=1,fps={request.template.frames_per_second},"
+                f"trim=duration={scene.duration_seconds},setpts=PTS-STARTPTS[v{index}]"
             )
             concat_inputs.append(f"[v{index}]")
         subtitle_path = self.storage_root / subtitles.relative_path
         escaped_subtitle_path = _escape_filter_path(subtitle_path)
         filter_complex = ";".join(video_chains)
         filter_complex += (
-            f";{''.join(concat_inputs)}concat=n={len(images)}:v=1:a=0[base]"
-            f";[base]subtitles='{escaped_subtitle_path}'[video]"
+            f";{''.join(concat_inputs)}concat=n={len(visuals)}:v=1:a=0[base]"
+            f";[base]subtitles='{escaped_subtitle_path}':"
+            "force_style='Alignment=2,FontSize=28,MarginV=150,Outline=2,Shadow=0'[video]"
         )
         command.extend(
             [
@@ -70,7 +80,7 @@ class FfmpegRenderer:
                 "-map",
                 "[video]",
                 "-map",
-                f"{len(images)}:a:0",
+                f"{len(visuals)}:a:0",
                 "-c:v",
                 "libx264",
                 "-preset",
@@ -114,7 +124,9 @@ class FfprobeValidator:
     def __init__(self, executable: Path) -> None:
         self.executable = executable
 
-    def validate(self, render: Path) -> ValidationReport:
+    def validate(
+        self, render: Path, expected_duration_seconds: float | None = None
+    ) -> ValidationReport:
         if not self.executable.is_file():
             raise MissingMediaExecutable(f"ffprobe executable not found: {self.executable}")
         command = [
@@ -140,6 +152,16 @@ class FfprobeValidator:
             ValidationCheck(name="video_stream", passed=video is not None),
             ValidationCheck(name="audio_stream", passed=audio is not None),
             ValidationCheck(
+                name="video_codec",
+                passed=bool(video and video.get("codec_name") == "h264"),
+                detail=video.get("codec_name", "missing") if video else "missing",
+            ),
+            ValidationCheck(
+                name="audio_codec",
+                passed=bool(audio and audio.get("codec_name") == "aac"),
+                detail=audio.get("codec_name", "missing") if audio else "missing",
+            ),
+            ValidationCheck(
                 name="resolution",
                 passed=bool(video and video.get("width") == 1080 and video.get("height") == 1920),
                 detail=f"{video.get('width')}x{video.get('height')}" if video else "missing",
@@ -149,7 +171,21 @@ class FfprobeValidator:
                 passed=bool(video and _frame_rate(video.get("avg_frame_rate", "0/1")) == 30),
                 detail=video.get("avg_frame_rate", "missing") if video else "missing",
             ),
-            ValidationCheck(name="duration", passed=duration > 0, detail=str(duration)),
+            ValidationCheck(
+                name="duration",
+                passed=(
+                    duration > 0
+                    and (
+                        expected_duration_seconds is None
+                        or abs(duration - expected_duration_seconds) <= 0.15
+                    )
+                ),
+                detail=(
+                    f"observed={duration}; expected={expected_duration_seconds}"
+                    if expected_duration_seconds is not None
+                    else str(duration)
+                ),
+            ),
         )
         return ValidationReport(
             checks=checks,

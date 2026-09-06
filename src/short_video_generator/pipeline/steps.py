@@ -15,10 +15,21 @@ class StepExecutor:
         self.repository = repository
 
     def completed(
-        self, execution: ExecutionState, step: PipelineStep, production_id: str | None
+        self,
+        execution: ExecutionState,
+        step: PipelineStep,
+        production_id: str | None,
+        input_fingerprint: str | None = None,
     ) -> bool:
         record = execution.step(step, production_id)
-        return bool(record and record.status == StepStatus.COMPLETED)
+        return bool(
+            record
+            and record.status == StepStatus.COMPLETED
+            and (
+                input_fingerprint is None
+                or record.input_summary.get("fingerprint") == input_fingerprint
+            )
+        )
 
     def run(
         self,
@@ -26,9 +37,10 @@ class StepExecutor:
         step: PipelineStep,
         production_id: str | None,
         action: Callable[[], T],
+        input_fingerprint: str | None = None,
     ) -> T:
         record = execution.step(step, production_id)
-        if record and record.status == StepStatus.COMPLETED:
+        if record and self.completed(execution, step, production_id, input_fingerprint):
             raise RuntimeError(f"Completed step {step} must be handled by its caller")
         if record is None:
             record = StepState(step=step, production_id=production_id)
@@ -39,6 +51,8 @@ class StepExecutor:
         record.started_at = datetime.now(UTC)
         record.finished_at = None
         record.error_message = None
+        record.input_summary = {"fingerprint": input_fingerprint} if input_fingerprint else {}
+        record.output_summary = {"reused": False}
         self.repository.save(execution)
         try:
             result = action()

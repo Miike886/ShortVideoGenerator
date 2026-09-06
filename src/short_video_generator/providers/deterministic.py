@@ -1,21 +1,15 @@
-import math
-import wave
-from array import array
 from collections.abc import Sequence
-from pathlib import Path
 
 from short_video_generator.contracts import (
     CandidateInput,
     EditorialBrief,
-    LocalFileDraft,
     ScriptScene,
     VideoScript,
 )
-from short_video_generator.domain.enums import ArtifactType
 
 
 class FixtureSourceProvider:
-    """In-memory source used by tests and the first local vertical slice."""
+    """In-memory source used by tests and local vertical slices."""
 
     def __init__(self, candidates: Sequence[CandidateInput]) -> None:
         self._candidates = tuple(candidates)
@@ -26,103 +20,55 @@ class FixtureSourceProvider:
 
 
 class DeterministicEditorialProvider:
-    """Stable editorial adapter; it does not call a model or external service."""
+    """Simple three-scene strategy; it does not call a model or external service."""
+
+    def __init__(self, language: str = "en", target_duration_seconds: int | None = None) -> None:
+        self.language = language
+        self.target_duration_seconds = target_duration_seconds or 30
 
     def create_brief(self, candidate: CandidateInput) -> EditorialBrief:
         return EditorialBrief(
             topic=candidate.title,
-            angle=f"Explicar de forma breve: {candidate.title}",
-            audience="Audiencia general",
-            promise="Entender el tema en menos de un minuto",
+            angle=f"Explain briefly: {candidate.title}",
+            audience="General audience",
+            promise=f"Understand {candidate.title} in a short explanation",
             key_points=(candidate.summary,),
-            tone="claro",
-            target_duration_seconds=30,
+            tone="clear",
+            target_duration_seconds=self.target_duration_seconds,
             source_urls=(str(candidate.canonical_url),),
         )
 
     def create_script(self, brief: EditorialBrief) -> VideoScript:
-        point = brief.key_points[0]
+        if self.language.lower().startswith("es"):
+            narrations = (
+                f"Esta es una explicación breve de {brief.topic}.",
+                brief.key_points[0],
+                f"Esa es la idea principal detrás de {brief.topic}.",
+            )
+        else:
+            narrations = (
+                f"Here is a quick explanation of {brief.topic}.",
+                brief.key_points[0],
+                f"That is the core idea behind {brief.topic}.",
+            )
+        visual_queries = (
+            f"{brief.topic} technology concept",
+            f"{brief.topic} developer workflow",
+            f"{brief.topic} practical benefits",
+        )
         return VideoScript(
             title=brief.topic,
             hook=brief.promise,
-            scenes=(
+            scenes=tuple(
                 ScriptScene(
-                    order=1,
-                    narration=brief.promise,
-                    on_screen_text=brief.topic,
-                    visual_direction="Título centrado sobre fondo sólido",
-                    duration_seconds=5,
-                ),
-                ScriptScene(
-                    order=2,
-                    narration=point,
-                    on_screen_text=point[:120],
-                    visual_direction="Texto principal sobre fondo sólido",
-                    duration_seconds=20,
-                ),
-                ScriptScene(
-                    order=3,
-                    narration="Eso es lo esencial.",
-                    on_screen_text="Resumen completo",
-                    visual_direction="Cierre limpio",
-                    duration_seconds=5,
-                ),
-            ),
-            closing="Eso es lo esencial.",
-        )
-
-
-class DeterministicSpeechProvider:
-    sample_rate = 16_000
-    frequency_hz = 440
-
-    def synthesize(self, text: str, destination: Path) -> LocalFileDraft:
-        del text
-        destination.mkdir(parents=True, exist_ok=True)
-        output = destination / "voice.wav"
-        duration_seconds = 30
-        amplitude = 2_000
-        samples = array(
-            "h",
-            (
-                int(
-                    amplitude * math.sin(2 * math.pi * self.frequency_hz * index / self.sample_rate)
+                    order=index,
+                    narration=narration,
+                    on_screen_text=(brief.topic if index == 1 else narration[:120]),
+                    visual_direction="Full-frame visual asset with readable caption",
+                    visual_query=visual_queries[index - 1],
+                    duration_seconds=10,
                 )
-                for index in range(self.sample_rate * duration_seconds)
+                for index, narration in enumerate(narrations, start=1)
             ),
+            closing=narrations[-1],
         )
-        with wave.open(str(output), "wb") as audio:
-            audio.setnchannels(1)
-            audio.setsampwidth(2)
-            audio.setframerate(self.sample_rate)
-            audio.writeframes(samples.tobytes())
-        return LocalFileDraft(
-            artifact_type=ArtifactType.VOICE,
-            relative_path=Path(output.name),
-            media_type="audio/wav",
-            metadata={"duration_seconds": duration_seconds, "fixture": True},
-        )
-
-
-class DeterministicMediaProvider:
-    width = 540
-    height = 960
-    colors = ((31, 41, 55), (30, 64, 175), (88, 28, 135), (6, 95, 70), (153, 27, 27))
-
-    def create_visuals(self, script: VideoScript, destination: Path) -> list[LocalFileDraft]:
-        destination.mkdir(parents=True, exist_ok=True)
-        assets: list[LocalFileDraft] = []
-        for scene, color in zip(script.scenes, self.colors, strict=False):
-            filename = f"scene-{scene.order:02d}.ppm"
-            output = destination / filename
-            header = f"P6\n{self.width} {self.height}\n255\n".encode("ascii")
-            output.write_bytes(header + bytes(color) * (self.width * self.height))
-            assets.append(
-                LocalFileDraft(
-                    artifact_type=ArtifactType.IMAGE,
-                    relative_path=Path(filename),
-                    media_type="image/x-portable-pixmap",
-                    metadata={"scene_order": scene.order, "fixture": True},
-                )
-            )
-        return assets

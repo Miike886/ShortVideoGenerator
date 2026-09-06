@@ -1,10 +1,8 @@
 import hashlib
 
-from short_video_generator.contracts import ScriptScene, VideoScript
-from short_video_generator.providers.deterministic import (
-    DeterministicMediaProvider,
-    DeterministicSpeechProvider,
-)
+from short_video_generator.contracts import ScriptScene, TextToSpeechOptions, VideoScript
+from short_video_generator.providers.assets import FakeAssetProvider
+from short_video_generator.providers.tts import FakeTextToSpeechProvider
 from short_video_generator.rendering.subtitles import create_srt
 from short_video_generator.storage import LocalArtifactStore
 
@@ -42,10 +40,25 @@ def test_media_audio_and_subtitles_are_local_and_reproducible(tmp_path) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
 
-    first_images = DeterministicMediaProvider().create_visuals(script, first)
-    second_images = DeterministicMediaProvider().create_visuals(script, second)
-    first_audio = DeterministicSpeechProvider().synthesize("fixture", first)
-    second_audio = DeterministicSpeechProvider().synthesize("fixture", second)
+    first_provider = FakeAssetProvider()
+    second_provider = FakeAssetProvider()
+    first_images = [
+        first_provider.acquire(f"query {scene.order}", scene.order, first)
+        for scene in script.scenes
+    ]
+    second_images = [
+        second_provider.acquire(f"query {scene.order}", scene.order, second)
+        for scene in script.scenes
+    ]
+    provider = FakeTextToSpeechProvider()
+    first_audio_path = first / "voice.wav"
+    second_audio_path = second / "voice.wav"
+    first_audio = provider.synthesize(
+        "fixture narration", first_audio_path, "en", TextToSpeechOptions()
+    )
+    second_audio = provider.synthesize(
+        "fixture narration", second_audio_path, "en", TextToSpeechOptions()
+    )
     subtitle = create_srt(script, first)
 
     assert len(first_images) == len(script.scenes) == 3
@@ -53,9 +66,9 @@ def test_media_audio_and_subtitles_are_local_and_reproducible(tmp_path) -> None:
     assert _sha256(first / first_images[0].relative_path) == _sha256(
         second / second_images[0].relative_path
     )
-    assert _sha256(first / first_audio.relative_path) == _sha256(
-        second / second_audio.relative_path
-    )
+    assert first_audio.provider == provider.provider_name
+    assert first_audio.duration_seconds == second_audio.duration_seconds
+    assert _sha256(first_audio_path) == _sha256(second_audio_path)
 
 
 def test_artifact_store_promotes_work_without_leaving_partial_files(tmp_path) -> None:

@@ -14,3 +14,9 @@ class NicheDefinition(Contract):
 class FixtureSourceDefinition(Contract):
     name: str = Field(default="fixture", min_length=1, max_length=200)
     enabled: bool = True
+
+
+class ManualProductionInput(Contract):
+    topic: str = Field(min_length=3, max_length=300)
+    language: str = Field(default="en", min_length=2, max_length=20)
+    target_duration_seconds: int | None = Field(default=None, ge=10, le=180)

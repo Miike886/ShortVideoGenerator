@@ -16,9 +16,7 @@ def imported_roots(path: Path) -> set[str]:
 def imported_modules(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return {
-        node.module
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module
+        node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module
     } | {
         alias.name
         for node in ast.walk(tree)
@@ -53,7 +51,5 @@ def test_pipeline_has_no_framework_persistence_or_concrete_adapter_dependencies(
         imports = imported_modules(module)
         assert imported_roots(module).isdisjoint(forbidden_roots), module
         assert not any(
-            imported.startswith(prefix)
-            for imported in imports
-            for prefix in forbidden_modules
+            imported.startswith(prefix) for imported in imports for prefix in forbidden_modules
         ), module

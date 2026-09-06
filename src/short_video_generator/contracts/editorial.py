@@ -20,6 +20,7 @@ class ScriptScene(Contract):
     narration: str = Field(min_length=1, max_length=2_000)
     on_screen_text: str = Field(default="", max_length=300)
     visual_direction: str = Field(min_length=1, max_length=1_000)
+    visual_query: str = Field(default="", max_length=500)
     duration_seconds: float = Field(gt=0, le=60)
 
 

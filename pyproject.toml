@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Local modular pipeline for human-reviewed short video generation"
 requires-python = ">=3.12"
 dependencies = [
+    "edge-tts>=7.2,<8",
     "fastapi>=0.115,<1",
     "pydantic>=2.10,<3",
     "sqlalchemy>=2.0,<3",

@@ -62,14 +62,14 @@ El worker y el scheduler son deliberadamente esqueletos en este hito.
 
 ## Vertical slice determinista
 
-El comando manual crea un nicho y un candidato fixture, los evalúa, genera brief y guion,
-crea imágenes PPM, audio WAV y subtítulos SRT, renderiza un MP4 vertical y lo coloca en la
-bandeja de revisión.
+El comando manual recibe un tema y un idioma, crea un candidato fixture, genera un brief y
+un guion determinista de tres escenas, obtiene audio y recursos visuales mediante proveedores
+reemplazables, renderiza un MP4 vertical y lo coloca en la bandeja de revisión.
 
 Con FFmpeg y `ffprobe` disponibles en `PATH`:
 
 ```powershell
-uv run svg-run-manual
+uv run svg-run-manual --topic "Why containers are useful" --language en
 ```
 
 Si la terminal todavía no heredó las rutas, se pueden indicar explícitamente:
@@ -78,11 +78,13 @@ Si la terminal todavía no heredó las rutas, se pueden indicar explícitamente:
 uv run svg-run-manual --ffmpeg C:\ruta\a\ffmpeg.exe --ffprobe C:\ruta\a\ffprobe.exe
 ```
 
-El identificador predeterminado `manual-fixture-v1` hace que repetir el comando devuelva la
-misma ejecución y producción sin duplicar artefactos. Para crear otra ejecución:
+Si no se indica `--idempotency-key`, el comando la deriva de la entrada y la configuración.
+Repetir la misma entrada devuelve la misma ejecución y producción sin volver a invocar TTS,
+descargar assets ni renderizar. Para identificar explícitamente una ejecución:
 
 ```powershell
-uv run svg-run-manual --idempotency-key manual-fixture-v2
+uv run svg-run-manual --topic "Why containers are useful" --language en `
+  --idempotency-key containers-en-v1
 ```
 
 Inicia la API en otro proceso:
@@ -108,7 +110,20 @@ Una decisión humana utiliza uno de estos valores:
 ```
 
 También se aceptan `rejected` y `changes_requested`; ambas decisiones requieren comentario.
-El audio actual es un tono de prueba reproducible, no una voz sintética real.
+Las pruebas usan proveedores `fake` reproducibles y no requieren red. Para una ejecución con
+voz inteligible de Edge TTS y recursos gratuitos de Pexels:
+
+```powershell
+$env:PEXELS_API_KEY = "TU_API_KEY"
+uv run svg-run-manual --topic "Why containers are useful" --language en `
+  --tts-provider edge --asset-provider pexels
+```
+
+También se aceptan `TTS_PROVIDER`, `TTS_VOICE`, `TTS_RATE`, `TTS_VOLUME`,
+`ASSET_PROVIDER` y `PEXELS_API_KEY`; `.env.example` contiene la plantilla. Edge TTS requiere
+conectividad, pero no una clave propia. Pexels requiere su clave API y conserva atribución y
+metadatos de origen por asset. El flujo `fake` continúa siendo la referencia gratuita,
+reproducible y offline para desarrollo y pruebas.
 
 ## Quality gate de desarrollo
 
@@ -116,6 +131,7 @@ El flujo automático de cierre de desarrollo es:
 
 ```text
 Implementación
+    → vertical-slice-implementer
     → architecture-guardian
     → code-quality-gate
     → feature-documenter
@@ -125,6 +141,10 @@ Implementación
 `architecture-guardian` revisa límites, dirección de dependencias, cohesión y propiedad de
 la lógica. Sólo corrige automáticamente hallazgos pequeños y seguros; un resultado `blocked`
 detiene QA y publicación hasta autorizar una refactorización amplia.
+
+`vertical-slice-implementer` convierte una feature autorizada en el recorrido ejecutable y
+verificable más pequeño, presenta el plan y los comandos de validación antes de editar, y
+mantiene fuera del alcance las capacidades pospuestas. No autoriza acciones Git externas.
 
 `code-quality-gate` verifica lockfile, dependencias, Ruff, pruebas aplicables, whitespace,
 artefactos temporales y FFmpeg cuando el cambio afecta renderizado. Su resultado es `passed`,
