@@ -1,3 +1,4 @@
+from .characters import CharacterAssetReference, CharacterDefinition, PresenterInstruction
 from .configuration import FixtureSourceDefinition, ManualProductionInput, NicheDefinition
 from .editorial import EditorialBrief, ScriptScene, VideoScript
 from .evaluation import CandidateEvaluation
@@ -11,12 +12,15 @@ __all__ = [
     "AudioProbeResult",
     "CandidateEvaluation",
     "CandidateInput",
+    "CharacterAssetReference",
+    "CharacterDefinition",
     "EditorialBrief",
     "FixtureSourceDefinition",
     "GeneratedAsset",
     "LocalFileDraft",
     "ManualProductionInput",
     "NicheDefinition",
+    "PresenterInstruction",
     "RenderRequest",
     "RenderResult",
     "ReviewSubmission",

@@ -5,8 +5,10 @@ from short_video_generator.contracts import (
     AudioArtifactMetadata,
     CandidateEvaluation,
     CandidateInput,
+    CharacterAssetReference,
     EditorialBrief,
     LocalFileDraft,
+    PresenterInstruction,
     RenderRequest,
     RenderResult,
     TextToSpeechOptions,
@@ -51,6 +53,15 @@ class AssetProvider(Protocol):
     def acquire(
         self, visual_query: str, scene_order: int, destination: Path
     ) -> LocalFileDraft: ...
+
+
+class CharacterAssetProvider(Protocol):
+    provider_name: str
+    provider_version: str
+
+    def resolve(
+        self, instruction: PresenterInstruction, scene_order: int
+    ) -> CharacterAssetReference: ...
 
 
 class Renderer(Protocol):

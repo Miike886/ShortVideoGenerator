@@ -6,6 +6,7 @@ deferred.
 
 | Date | Phase | Status |
 | --- | --- | --- |
+| 2026-09-06 | [Reusable character presenter slice](2026-09-06-reusable-character-presenter-slice.md) | Completed with offline and live real-provider runs |
 | 2026-09-05 | [Temporary artifact hygiene](2026-09-05-temp-artifact-hygiene.md) | Completed |
 | 2026-09-05 | [Real-content vertical slice](2026-09-05-real-content-vertical-slice.md) | Completed; Pexels live run pending API key |
 | 2026-09-05 | [Automatic vertical slice implementer](2026-09-05-vertical-slice-implementer.md) | Completed |

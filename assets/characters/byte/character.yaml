@@ -1,0 +1,21 @@
+id: byte
+name: Byte
+description: original animated mascot presenter for ShortVideoGenerator
+version: byte-v1
+asset_directory: .
+default_pose: neutral
+available_poses:
+  - neutral
+  - explaining
+  - pointing_left
+  - pointing_right
+  - thinking
+  - surprised
+  - happy
+  - laughing
+  - skeptical
+  - shrugging
+  - working
+  - idea
+preferred_screen_position: bottom_right
+scale: 0.32

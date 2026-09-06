@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from short_video_generator.contracts import (
     CandidateInput,
     EditorialBrief,
+    PresenterInstruction,
     ScriptScene,
     VideoScript,
 )
@@ -22,9 +23,15 @@ class FixtureSourceProvider:
 class DeterministicEditorialProvider:
     """Simple three-scene strategy; it does not call a model or external service."""
 
-    def __init__(self, language: str = "en", target_duration_seconds: int | None = None) -> None:
+    def __init__(
+        self,
+        language: str = "en",
+        target_duration_seconds: int | None = None,
+        character_id: str = "byte",
+    ) -> None:
         self.language = language
         self.target_duration_seconds = target_duration_seconds or 30
+        self.character_id = character_id
 
     def create_brief(self, candidate: CandidateInput) -> EditorialBrief:
         return EditorialBrief(
@@ -67,8 +74,27 @@ class DeterministicEditorialProvider:
                     visual_direction="Full-frame visual asset with readable caption",
                     visual_query=visual_queries[index - 1],
                     duration_seconds=10,
+                    presenter=_presenter_for_scene(index, self.character_id),
                 )
                 for index, narration in enumerate(narrations, start=1)
             ),
             closing=narrations[-1],
         )
+
+
+def _presenter_for_scene(order: int, character_id: str) -> PresenterInstruction | None:
+    if order == 1:
+        return PresenterInstruction(
+            character_id=character_id,
+            pose="explaining",
+            position="bottom_right",
+            scale=0.32,
+        )
+    if order == 3:
+        return PresenterInstruction(
+            character_id=character_id,
+            pose="happy",
+            position="bottom_left",
+            scale=0.3,
+        )
+    return None

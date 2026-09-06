@@ -54,6 +54,7 @@ class ArtifactType(StrEnum):
     SOURCE_SNAPSHOT = "source_snapshot"
     VOICE = "voice"
     TIMELINE = "timeline"
+    CHARACTER_REFERENCE = "character_reference"
     IMAGE = "image"
     VIDEO_CLIP = "video_clip"
     SUBTITLE = "subtitle"
