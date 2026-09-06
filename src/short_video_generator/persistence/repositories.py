@@ -199,6 +199,8 @@ class SqlAlchemyExecutionRepository:
         record.started_at = state.started_at
         record.finished_at = state.finished_at
         record.error_message = state.error_message
+        record.input_summary = state.input_summary
+        record.output_summary = state.output_summary
 
     @staticmethod
     def _copy_artifact(state: ArtifactState, record: ArtifactRecord) -> None:
@@ -267,6 +269,8 @@ class SqlAlchemyExecutionRepository:
                 started_at=record.started_at,
                 finished_at=record.finished_at,
                 error_message=record.error_message,
+                input_summary=record.input_summary,
+                output_summary=record.output_summary,
             )
             for record in session.scalars(
                 select(StepRunRecord).where(StepRunRecord.pipeline_run_id == run.id)

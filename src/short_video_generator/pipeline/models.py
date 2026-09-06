@@ -65,6 +65,8 @@ class StepState:
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error_message: str | None = None
+    input_summary: dict[str, object] = field(default_factory=dict)
+    output_summary: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

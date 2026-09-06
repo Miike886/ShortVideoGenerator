@@ -1,7 +1,12 @@
 from pathlib import Path
 from typing import Protocol
 
-from short_video_generator.contracts import LocalFileDraft, ValidationReport, VideoScript
+from short_video_generator.contracts import (
+    AudioProbeResult,
+    LocalFileDraft,
+    ValidationReport,
+    VideoScript,
+)
 from short_video_generator.domain.enums import ProductionStatus, ReviewDecision
 from short_video_generator.pipeline.models import (
     ExecutionState,
@@ -42,7 +47,13 @@ class SubtitleProvider(Protocol):
 
 
 class MediaValidator(Protocol):
-    def validate(self, render: Path) -> ValidationReport: ...
+    def validate(
+        self, render: Path, expected_duration_seconds: float | None = None
+    ) -> ValidationReport: ...
+
+
+class AudioProbe(Protocol):
+    def inspect(self, audio: Path) -> AudioProbeResult: ...
 
 
 class ReviewRepository(Protocol):

@@ -53,6 +53,7 @@ class ReviewDecision(StrEnum):
 class ArtifactType(StrEnum):
     SOURCE_SNAPSHOT = "source_snapshot"
     VOICE = "voice"
+    TIMELINE = "timeline"
     IMAGE = "image"
     VIDEO_CLIP = "video_clip"
     SUBTITLE = "subtitle"

@@ -1,5 +1,9 @@
 # Repository instructions
 
+When the user asks to implement, build, add, or materially change product behavior,
+automatically use `.codex/skills/vertical-slice-implementer/SKILL.md`. Do not invoke it for
+planning-only, read-only, documentation-only, skill-maintenance, or trivial formatting work.
+
 When implementation changes modules, interfaces, models, dependencies, ownership, or
 responsibilities, automatically use `.codex/skills/architecture-guardian/SKILL.md` first.
 A blocked architecture review prevents QA and publication; broad refactors require user

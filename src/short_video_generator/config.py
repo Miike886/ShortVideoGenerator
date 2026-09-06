@@ -11,6 +11,12 @@ class Settings:
     storage_root: Path
     ffmpeg_path: Path | None = None
     ffprobe_path: Path | None = None
+    tts_provider: str = "fake"
+    tts_voice: str | None = None
+    tts_rate: int = 0
+    tts_volume: int = 100
+    asset_provider: str = "fake"
+    pexels_api_key: str | None = None
 
     @classmethod
     def local(cls, project_root: Path | None = None) -> "Settings":
@@ -21,6 +27,19 @@ class Settings:
             storage_root=root / "storage",
             ffmpeg_path=_resolve_executable("SVG_FFMPEG_PATH", "ffmpeg"),
             ffprobe_path=_resolve_executable("SVG_FFPROBE_PATH", "ffprobe"),
+            tts_provider=os.environ.get(
+                "TTS_PROVIDER", os.environ.get("SVG_TTS_PROVIDER", "fake")
+            ),
+            tts_voice=os.environ.get("TTS_VOICE", os.environ.get("SVG_TTS_VOICE"))
+            or None,
+            tts_rate=int(
+                os.environ.get("TTS_RATE", os.environ.get("SVG_TTS_RATE", "0"))
+            ),
+            tts_volume=int(
+                os.environ.get("TTS_VOLUME", os.environ.get("SVG_TTS_VOLUME", "100"))
+            ),
+            asset_provider=os.environ.get("ASSET_PROVIDER", "fake"),
+            pexels_api_key=os.environ.get("PEXELS_API_KEY") or None,
         )
 
     @property

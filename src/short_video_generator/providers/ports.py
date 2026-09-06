@@ -2,12 +2,14 @@ from pathlib import Path
 from typing import Protocol
 
 from short_video_generator.contracts import (
+    AudioArtifactMetadata,
     CandidateEvaluation,
     CandidateInput,
     EditorialBrief,
     LocalFileDraft,
     RenderRequest,
     RenderResult,
+    TextToSpeechOptions,
     VideoScript,
 )
 
@@ -26,12 +28,29 @@ class EditorialProvider(Protocol):
     def create_script(self, brief: EditorialBrief) -> VideoScript: ...
 
 
-class SpeechProvider(Protocol):
-    def synthesize(self, text: str, destination: Path) -> LocalFileDraft: ...
+class TextToSpeechProvider(Protocol):
+    provider_name: str
+    provider_version: str
+    output_suffix: str
+    output_media_type: str
+
+    def synthesize(
+        self,
+        text: str,
+        output_path: Path,
+        language: str,
+        options: TextToSpeechOptions,
+    ) -> AudioArtifactMetadata: ...
 
 
-class MediaProvider(Protocol):
-    def create_visuals(self, script: VideoScript, destination: Path) -> list[LocalFileDraft]: ...
+class AssetProvider(Protocol):
+    provider_name: str
+    provider_version: str
+    selection_strategy_version: str
+
+    def acquire(
+        self, visual_query: str, scene_order: int, destination: Path
+    ) -> LocalFileDraft: ...
 
 
 class Renderer(Protocol):

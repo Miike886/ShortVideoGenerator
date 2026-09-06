@@ -7,6 +7,17 @@ in the linked records under `docs/features/`.
 
 ### Added
 
+- Replaceable Edge/fake TTS and Pexels/fake asset adapters, with ffprobe-backed audio
+  inspection and a narration-driven three-scene timeline.
+- Topic, language, optional target duration, and provider configuration for manual runs.
+- Per-scene visual queries, Pexels provenance and attribution metadata, portrait-first media
+  selection, and deterministic local fallback when a query has no result.
+- Dedicated audio, timeline, background, and subtitle StepRuns with persisted input
+  fingerprints and a JSON timeline artifact.
+- End-to-end checks for dynamic duration, synchronized subtitles, stable artifact IDs,
+  H.264/AAC output, and final review state.
+- Automatic `vertical-slice-implementer` skill for turning authorized product changes into
+  minimal executable slices before architecture review, QA, and documentation.
 - Automatic `architecture-guardian` skill enforcing dependency direction, cohesive ownership,
   small provider ports, and thin API/ORM/CLI adapters before QA.
 - Automatic `code-quality-gate` skill covering uv reproducibility, Ruff, pytest, Git
@@ -30,6 +41,14 @@ in the linked records under `docs/features/`.
 
 ### Changed
 
+- Ignored `.test-temp/` so local test/runtime scratch files stay out of publication workflows.
+- Replaced the fixed 30-second media timeline with word-weighted scenes fitted to observed
+  narration duration, and strengthened validation with video codec, audio codec, and duration
+  checks.
+- Extended idempotency fingerprints to cover user input, provider configuration, narration,
+  and asset queries; matching reruns reuse StepRuns, assets, and the final render.
+- Extended the automatic development workflow to begin with repository-aware vertical-slice
+  implementation while retaining separate authorization for Git publication.
 - Decoupled pipeline orchestration and human review from SQLAlchemy, FastAPI, FFmpeg,
   subtitle, and local-storage implementations through project-owned ports and repositories.
 - Moved state persistence to SQLAlchemy adapters, review transitions to an application
