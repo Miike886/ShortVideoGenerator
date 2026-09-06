@@ -79,7 +79,7 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         assert session.scalar(select(func.count()).select_from(TopicCandidateRecord)) == 1
         assert session.scalar(select(func.count()).select_from(ProductionRecord)) == 1
         assert session.scalar(select(func.count()).select_from(StepRunRecord)) == 14
-        assert session.scalar(select(func.count()).select_from(ArtifactRecord)) == 12
+        assert session.scalar(select(func.count()).select_from(ArtifactRecord)) == 13
         assert set(session.scalars(select(StepRunRecord.status))) == {StepStatus.COMPLETED}
         step_records = session.scalars(select(StepRunRecord)).all()
         fingerprinted_steps = {
@@ -104,6 +104,9 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
             item for item in artifacts if item.type == ArtifactType.CHARACTER_REFERENCE
         )
         subtitle = next(item for item in artifacts if item.type == ArtifactType.SUBTITLE)
+        visual_plan = next(item for item in artifacts if item.type == ArtifactType.VISUAL_PLAN)
+        assert visual_plan.artifact_metadata["planner"] == "visual-direction-v1"
+        assert len(visual_plan.artifact_metadata["plans"]) == 5
         for artifact in (voice, timeline, alignment, character_reference, subtitle, render):
             assert len(artifact.artifact_metadata["input_fingerprint"]) == 64
         production = session.scalar(select(ProductionRecord))

@@ -8,6 +8,7 @@ from .captions import CaptionGroup
 from .characters import CharacterAssetReference
 from .common import Contract
 from .editorial import VideoScript
+from .visuals import SceneVisualDirection
 
 
 class GeneratedAsset(Contract):
@@ -39,6 +40,7 @@ class RenderRequest(Contract):
     assets: tuple[GeneratedAsset, ...]
     character_assets: tuple[CharacterAssetReference, ...] = ()
     caption_groups: tuple[CaptionGroup, ...] = ()
+    visual_directions: tuple[SceneVisualDirection, ...] = ()
     template: VideoTemplate = Field(default_factory=VideoTemplate)
 
 

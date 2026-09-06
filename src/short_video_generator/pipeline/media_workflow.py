@@ -11,7 +11,7 @@ from short_video_generator.contracts import (
     VideoScript,
     WordTiming,
 )
-from short_video_generator.domain.enums import ArtifactType, ProductionStatus
+from short_video_generator.domain.enums import ArtifactType, ProductionStatus, StepStatus
 from short_video_generator.domain.transitions import require_transition
 from short_video_generator.pipeline.definitions import PipelineStep
 from short_video_generator.pipeline.models import (
@@ -23,6 +23,10 @@ from short_video_generator.pipeline.models import (
 from short_video_generator.pipeline.ports import ArtifactStore, AudioProbe, SubtitleProvider
 from short_video_generator.pipeline.steps import StepExecutor
 from short_video_generator.pipeline.timeline import fit_script_to_audio
+from short_video_generator.pipeline.visuals import (
+    DeterministicVisualPlanner,
+    presenter_for_direction,
+)
 from short_video_generator.providers.ports import (
     AssetProvider,
     CaptionAlignmentProvider,
@@ -34,7 +38,8 @@ from short_video_generator.providers.ports import (
 
 class NarratedMediaWorkflow:
     timeline_version = "word-weighted-v1"
-    presenter_version = "deterministic-presenter-v1"
+    presenter_version = "deterministic-presenter-v2"
+    visual_planner_version = "visual-direction-v1"
 
     def __init__(
         self,
@@ -50,6 +55,7 @@ class NarratedMediaWorkflow:
         default_character_id: str,
         subtitles: SubtitleProvider,
         renderer: Renderer,
+        tts_mode: str = "live",
     ) -> None:
         self.steps = steps
         self.store = store
@@ -61,8 +67,12 @@ class NarratedMediaWorkflow:
         self.caption_alignment = caption_alignment
         self.characters = characters
         self.default_character_id = default_character_id
+        if tts_mode not in {"live", "cached"}:
+            raise ValueError("TTS_MODE must be either 'live' or 'cached'")
+        self.tts_mode = tts_mode
         self.subtitles = subtitles
         self.renderer = renderer
+        self.visual_planner = DeterministicVisualPlanner()
 
     def render(self, execution: ExecutionState, production: ProductionState, work: Path) -> Path:
         audio = self._generate_audio(execution, production, work)
@@ -73,11 +83,16 @@ class NarratedMediaWorkflow:
         self._generate_subtitles(execution, production, alignment, work)
         return self._render_video(execution, production, work)
 
+    def generate_audio(
+        self, execution: ExecutionState, production: ProductionState, work: Path
+    ) -> ArtifactState:
+        return self._generate_audio(execution, production, work)
+
     def _generate_audio(
         self, execution: ExecutionState, production: ProductionState, work: Path
     ) -> ArtifactState:
         script = VideoScript.model_validate(production.script)
-        text = " ".join(scene.narration for scene in script.scenes)
+        text = " ".join(scene.effective_speech_text for scene in script.scenes)
         fingerprint = _fingerprint(
             {
                 "text": text,
@@ -88,6 +103,7 @@ class NarratedMediaWorkflow:
             }
         )
         artifact = _artifact(execution, ArtifactType.VOICE)
+        cache_status = "miss"
         if (
             artifact is not None
             and artifact.metadata.get("input_fingerprint") == fingerprint
@@ -95,7 +111,41 @@ class NarratedMediaWorkflow:
                 execution, PipelineStep.GENERATE_AUDIO, production.id, fingerprint
             )
         ):
-            return artifact
+            if _cached_audio_is_valid(self.store, self.audio_probe, artifact):
+                cache_status = "hit"
+                _record_tts_observability(
+                    self.steps,
+                    execution,
+                    production.id,
+                    self.tts_mode,
+                    cache_status,
+                    fingerprint,
+                    self.speech,
+                    self.speech_options,
+                    external_request_made=False,
+                )
+                return artifact
+            if self.tts_mode == "cached":
+                _reset_completed_audio_step(self.steps, execution, production.id)
+                return self._blocked_cached_audio(
+                    execution,
+                    production,
+                    fingerprint,
+                    "Narration artifact is missing or invalid for the current TTS "
+                    "fingerprint while TTS_MODE=cached. Switch explicitly to "
+                    "TTS_MODE=live to allow external TTS generation.",
+                )
+            _reset_completed_audio_step(self.steps, execution, production.id)
+
+        if self.tts_mode == "cached":
+            return self._blocked_cached_audio(
+                execution,
+                production,
+                fingerprint,
+                "Narration artifact not found for the current TTS fingerprint while "
+                "TTS_MODE=cached. Switch explicitly to TTS_MODE=live to allow external TTS "
+                "generation.",
+            )
 
         def action() -> ArtifactState:
             output = work / f"voice{self.speech.output_suffix}"
@@ -108,6 +158,9 @@ class NarratedMediaWorkflow:
             )
             metadata = generated.model_dump(mode="json") | observed.model_dump(mode="json")
             metadata["input_fingerprint"] = fingerprint
+            metadata["tts_mode"] = self.tts_mode
+            metadata["tts_cache_status"] = "miss"
+            metadata["external_request_made"] = True
             return _upsert_artifact(
                 execution,
                 ArtifactType.VOICE,
@@ -115,6 +168,47 @@ class NarratedMediaWorkflow:
                 metadata,
                 stored,
             )
+
+        result = self.steps.run(
+            execution,
+            PipelineStep.GENERATE_AUDIO,
+            production.id,
+            action,
+            fingerprint,
+        )
+        _record_tts_observability(
+            self.steps,
+            execution,
+            production.id,
+            self.tts_mode,
+            "miss",
+            fingerprint,
+            self.speech,
+            self.speech_options,
+            external_request_made=True,
+        )
+        return result
+
+    def _blocked_cached_audio(
+        self,
+        execution: ExecutionState,
+        production: ProductionState,
+        fingerprint: str,
+        message: str,
+    ) -> ArtifactState:
+        def action() -> ArtifactState:
+            _record_tts_observability(
+                self.steps,
+                execution,
+                production.id,
+                self.tts_mode,
+                "miss",
+                fingerprint,
+                self.speech,
+                self.speech_options,
+                external_request_made=False,
+            )
+            raise CachedNarrationError(message)
 
         return self.steps.run(
             execution,
@@ -240,10 +334,11 @@ class NarratedMediaWorkflow:
         self, execution: ExecutionState, production: ProductionState, work: Path
     ) -> None:
         script = VideoScript.model_validate(production.script)
+        plans = _visual_plans(script, self.visual_planner)
         scene_fingerprints = {
             scene.order: _fingerprint(
                 {
-                    "visual_query": scene.visual_query or scene.narration,
+                    "visual_direction": plans[scene.order].model_dump(mode="json"),
                     "provider": self.assets.provider_name,
                     "provider_version": self.assets.provider_version,
                     "selection_strategy": self.assets.selection_strategy_version,
@@ -273,6 +368,21 @@ class NarratedMediaWorkflow:
             return
 
         def action() -> None:
+            plan_path = self.store.write_text(
+                work, "visual-plan.json", json.dumps(
+                    {str(order): plan.model_dump(mode="json") for order, plan in plans.items()},
+                    indent=2, sort_keys=True,
+                )
+            )
+            plan_stored = self.store.promote(
+                plan_path, self.store.asset_directory(production.id) / plan_path.name
+            )
+            _upsert_artifact(
+                execution, ArtifactType.VISUAL_PLAN, "application/json",
+                {"planner": self.visual_planner.version, "plans": {
+                    str(order): plan.model_dump(mode="json") for order, plan in plans.items()
+                }, "input_fingerprint": fingerprint}, plan_stored
+            )
             for scene in script.scenes:
                 scene_fingerprint = scene_fingerprints[scene.order]
                 existing = next(
@@ -287,7 +397,7 @@ class NarratedMediaWorkflow:
                 if existing is not None:
                     continue
                 draft = self.assets.acquire(
-                    scene.visual_query or scene.narration,
+                    plans[scene.order].search.primary_query,
                     scene.order,
                     work,
                 )
@@ -303,6 +413,10 @@ class NarratedMediaWorkflow:
                     | {
                         "scene_order": scene.order,
                         "input_fingerprint": scene_fingerprint,
+                        "visual_subject": plans[scene.order].subject,
+                        "visual_purpose": plans[scene.order].purpose,
+                        "focal_region": plans[scene.order].focal_region,
+                        "selected_query": plans[scene.order].search.primary_query,
                     },
                     stored,
                 )
@@ -441,7 +555,7 @@ class NarratedMediaWorkflow:
                     for item in execution.artifacts
                     if item.artifact_type != ArtifactType.RENDER
                 ],
-                "renderer": "ffmpeg-presenter-ass-v1",
+                "renderer": "ffmpeg-presenter-visual-direction-v1",
             }
         )
         if render is not None and render.metadata.get("input_fingerprint") == render_fingerprint:
@@ -449,12 +563,14 @@ class NarratedMediaWorkflow:
 
         def action() -> Path:
             script = VideoScript.model_validate(production.script)
+            plans = _visual_plans(script, self.visual_planner)
             result = self.renderer.render(
                 RenderRequest(
                     production_id=production.id,
                     script=script,
                     assets=tuple(_artifact_contracts(execution)),
                     character_assets=tuple(self._presenter_assets(script)),
+                    visual_directions=tuple(plans[scene.order] for scene in script.scenes),
                 ),
                 work,
             )
@@ -479,20 +595,88 @@ class NarratedMediaWorkflow:
         return self.steps.run(execution, PipelineStep.RENDER, production.id, action)
 
     def _presenter_assets(self, script: VideoScript) -> list[CharacterAssetReference]:
+        plans = _visual_plans(script, self.visual_planner)
         return [
             self.characters.resolve(
-                scene.presenter
-                or _default_presenter_instruction(scene.role, self.default_character_id),
-                scene.order,
+                presenter_for_direction(
+                    plans[scene.order], self.default_character_id,
+                    (scene.presenter.scale if scene.presenter and scene.presenter.scale else 0.32),
+                ), scene.order,
             )
             for scene in script.scenes
             if scene.presenter is None or scene.presenter.visibility
         ]
 
 
+def _visual_plans(script: VideoScript, planner: DeterministicVisualPlanner) -> dict[int, object]:
+    plans = {}
+    previous_region = None
+    for scene in script.scenes:
+        plan = planner.plan(scene, previous_region)
+        plans[scene.order] = plan
+        previous_region = plan.byte_region
+    return plans
+
+
 def _fingerprint(payload: dict[str, object]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
+
+
+class CachedNarrationError(RuntimeError):
+    pass
+
+
+def _cached_audio_is_valid(
+    store: ArtifactStore, probe: AudioProbe, artifact: ArtifactState
+) -> bool:
+    try:
+        path = store.resolve(artifact.relative_path)
+        if not path.is_file():
+            return False
+        if hashlib.sha256(path.read_bytes()).hexdigest() != artifact.sha256:
+            return False
+        probe.inspect(path)
+        return True
+    except (OSError, ValueError, RuntimeError):
+        return False
+
+
+def _reset_completed_audio_step(
+    steps: StepExecutor, execution: ExecutionState, production_id: str
+) -> None:
+    step = execution.step(PipelineStep.GENERATE_AUDIO, production_id)
+    if step is not None and step.status == StepStatus.COMPLETED:
+        step.status = StepStatus.QUEUED
+        step.error_message = None
+        steps.repository.save(execution)
+
+
+def _record_tts_observability(
+    steps: StepExecutor,
+    execution: ExecutionState,
+    production_id: str,
+    mode: str,
+    cache_status: str,
+    fingerprint: str,
+    provider: TextToSpeechProvider,
+    options: TextToSpeechOptions,
+    external_request_made: bool,
+) -> None:
+    step = execution.step(PipelineStep.GENERATE_AUDIO, production_id)
+    if step is None:
+        return
+    step.output_summary |= {
+        "tts_provider": provider.provider_name,
+        "tts_mode": mode,
+        "tts_cache_status": cache_status,
+        "tts_fingerprint": fingerprint,
+        "voice_version": options.voice_version,
+        "model_id": options.model_id,
+        "external_request_made": external_request_made,
+        "reused": cache_status == "hit",
+    }
+    steps.repository.save(execution)
 
 
 def _artifact(execution: ExecutionState, artifact_type: ArtifactType) -> ArtifactState | None:

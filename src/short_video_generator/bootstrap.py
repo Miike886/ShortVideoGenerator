@@ -123,6 +123,7 @@ def build_manual_pipeline(
         caption_alignment=captions,
         characters=characters,
         default_character_id=settings.default_character_id,
+        tts_mode=settings.tts_mode,
         subtitles=AssSubtitleProvider(),
         renderer=FfmpegRenderer(settings.ffmpeg_path, settings.storage_root),
     )
@@ -177,6 +178,9 @@ def default_idempotency_key(
         "caption_alignment_provider": settings.caption_alignment_provider,
         "whisperx_model": settings.whisperx_model,
         "whisperx_device": settings.whisperx_device,
+        "visual_planner_version": "visual-direction-v1",
+        "byte_choreography_version": "byte-choreography-v1",
+        "visual_ranking_version": "visual-ranking-v1",
     }
     digest = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -261,6 +265,11 @@ def _input_fingerprint(
             "version": captions.provider_version,
             "whisperx_model": settings.whisperx_model,
             "whisperx_device": settings.whisperx_device,
+        },
+        "visuals": {
+            "planner": "visual-direction-v1",
+            "choreography": "byte-choreography-v1",
+            "ranking": "visual-ranking-v1",
         },
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()

@@ -3,7 +3,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from short_video_generator.contracts import CandidateInput, EditorialBrief, VideoScript
+from short_video_generator.contracts import (
+    CandidateInput,
+    EditorialBrief,
+    ScriptScene,
+    VideoScript,
+)
 from short_video_generator.domain.enums import (
     ArtifactType,
     CandidateStatus,
@@ -38,6 +43,12 @@ class PipelineResult:
     run_id: str
     production_id: str
     status: ProductionStatus
+    reused: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TtsReferenceResult:
+    artifact: ArtifactState
     reused: bool
 
 
@@ -112,6 +123,70 @@ class ManualPipeline:
             self.store.cleanup_work_directory(execution.run_id)
 
         return self._result(execution, production, reused=False)
+
+    def execute_tts_reference(
+        self, idempotency_key: str, text: str
+    ) -> TtsReferenceResult:
+        """Generate or reuse one controlled narration without running visual production."""
+        execution = self.repository.load(idempotency_key)
+        if execution is None:
+            execution = self.repository.create(idempotency_key)
+            candidate = CandidateState(
+                external_id=idempotency_key,
+                canonical_url=f"https://example.test/{idempotency_key}",
+                title=idempotency_key,
+                summary=text,
+            )
+            production = ProductionState(
+                topic_candidate_id=candidate.id,
+                script=VideoScript(
+                    title=idempotency_key,
+                    hook=text,
+                    scenes=(
+                        ScriptScene(
+                            order=1,
+                            narration=text,
+                            on_screen_text=text,
+                            visual_direction="Reference narration only",
+                            duration_seconds=10,
+                            role="hook",
+                        ),
+                    ),
+                    closing=text,
+                ).model_dump(mode="json"),
+            )
+            execution.candidate = candidate
+            execution.production = production
+            execution.stats["tts_reference_text"] = text
+        elif execution.stats.get("tts_reference_text") not in {None, text}:
+            raise ValueError("TTS reference key is already associated with different text")
+        production = self._required_production(execution)
+        self.repository.save(execution)
+        existing_artifact = next(
+            (item for item in execution.artifacts if item.artifact_type == ArtifactType.VOICE),
+            None,
+        )
+        work_id = f"{execution.run_id}-tts-reference"
+        work = self.store.prepare_work_directory(work_id)
+        execution.status = RunStatus.RUNNING
+        self.repository.save(execution)
+        try:
+            artifact = self.media_workflow.generate_audio(execution, production, work)
+            execution.status = RunStatus.COMPLETED
+            self.repository.save(execution)
+        except Exception as error:
+            execution.status = RunStatus.FAILED
+            execution.error_message = str(error)
+            self.repository.save(execution)
+            raise
+        finally:
+            self.store.cleanup_work_directory(work_id)
+        return TtsReferenceResult(
+            artifact=artifact,
+            reused=existing_artifact is not None
+            and artifact.id == existing_artifact.id
+            and artifact.sha256 == existing_artifact.sha256,
+        )
 
     def _discover(self, execution: ExecutionState) -> CandidateState:
         if execution.candidate is not None:

@@ -15,9 +15,10 @@ class Settings:
     tts_voice: str | None = None
     tts_rate: int = 0
     tts_volume: int = 100
+    tts_mode: str = "live"
     elevenlabs_api_key: str | None = None
     elevenlabs_voice_id: str | None = None
-    elevenlabs_voice_version: str = "byte_voice_dev_v1"
+    elevenlabs_voice_version: str = "byte_voice_v1"
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     elevenlabs_stability: float = 0.5
     elevenlabs_similarity_boost: float = 0.75
@@ -51,10 +52,11 @@ class Settings:
             tts_volume=int(
                 os.environ.get("TTS_VOLUME", os.environ.get("SVG_TTS_VOLUME", "100"))
             ),
+            tts_mode=os.environ.get("TTS_MODE", "cached"),
             elevenlabs_api_key=os.environ.get("ELEVENLABS_API_KEY") or None,
             elevenlabs_voice_id=os.environ.get("ELEVENLABS_VOICE_ID") or None,
             elevenlabs_voice_version=os.environ.get(
-                "ELEVENLABS_VOICE_VERSION", "byte_voice_dev_v1"
+                "ELEVENLABS_VOICE_VERSION", "byte_voice_v1"
             ),
             elevenlabs_model_id=os.environ.get(
                 "ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"

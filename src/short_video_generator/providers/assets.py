@@ -1,3 +1,4 @@
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -56,7 +57,7 @@ class FakeAssetProvider:
 class PexelsAssetProvider:
     provider_name = "pexels"
     provider_version = "v1"
-    selection_strategy_version = "portrait-video-landscape-video-photo-v1"
+    selection_strategy_version = "portrait-video-landscape-video-photo-ranked-v1"
     api_root = "https://api.pexels.com/v1"
 
     def __init__(
@@ -100,7 +101,8 @@ class PexelsAssetProvider:
             )
             videos = payload.get("videos", [])
             if videos:
-                return self._select_video(videos[0], orientation)
+                selected = max(videos, key=lambda item: self._video_score(item, orientation))
+                return self._select_video(selected, orientation)
         payload = self._request_json(
             "/search", {"query": query, "orientation": "portrait", "per_page": "5"}
         )
@@ -123,6 +125,19 @@ class PexelsAssetProvider:
                 return json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
             raise RuntimeError(f"Pexels request failed for {path}: {error}") from error
+
+    @staticmethod
+    def _video_score(video: dict[str, object], orientation: str) -> tuple[float, int]:
+        files = [
+            item for item in video.get("video_files", [])
+            if item.get("file_type") == "video/mp4" and item.get("width") and item.get("height")
+        ]
+        if not files:
+            return (-1.0, 0)
+        best = max(files, key=lambda item: int(item["width"]) * int(item["height"]))
+        ratio = int(best["height"]) / int(best["width"])
+        orientation_score = ratio if orientation == "portrait" else 1 / max(ratio, 0.01)
+        return (orientation_score, int(best["width"]) * int(best["height"]))
 
     @staticmethod
     def _select_video(video: dict[str, object], orientation: str) -> dict[str, object]:
@@ -198,11 +213,23 @@ class PexelsAssetProvider:
             str(selected["download_url"]),
             headers={"User-Agent": "ShortVideoGenerator/0.1"},
         )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                partial.write_bytes(response.read())
-            partial.replace(output)
-        except (urllib.error.URLError, TimeoutError, OSError) as error:
+        error: Exception | None = None
+        for _attempt in range(3):
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                    partial.write_bytes(response.read())
+                partial.replace(output)
+                error = None
+                break
+            except (
+                http.client.IncompleteRead,
+                urllib.error.URLError,
+                TimeoutError,
+                OSError,
+            ) as caught:
+                error = caught
+                partial.unlink(missing_ok=True)
+        if error is not None:
             raise RuntimeError(
                 f"Pexels asset download failed for {selected['external_asset_id']}: {error}"
             ) from error

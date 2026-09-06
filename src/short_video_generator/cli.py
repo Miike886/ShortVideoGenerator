@@ -5,6 +5,23 @@ from pathlib import Path
 from short_video_generator.bootstrap import build_manual_pipeline, default_idempotency_key
 from short_video_generator.config import Settings
 from short_video_generator.contracts import ManualProductionInput
+from short_video_generator.providers.assets import FakeAssetProvider
+
+BYTE_VOICE_REFERENCES = {
+    "en": (
+        "Okay, this is actually pretty strange. Microsoft says its new AI system can process "
+        "information much faster than before. But here's the interesting part: it doesn't just "
+        "analyze text — it can work with images, audio, and video too. So... is this actually a "
+        "big deal? Well, yes and no. And the reason why is surprisingly simple."
+    ),
+    "es": (
+        "Esto es bastante más extraño de lo que parece. Microsoft presentó un nuevo sistema de "
+        "inteligencia artificial capaz de trabajar con texto, imágenes, audio y video. Pero aquí "
+        "viene lo interesante: también puede conectarse con herramientas como GitHub y ejecutar "
+        "ciertas tareas automáticamente. Entonces... ¿realmente cambia algo? Sí, pero no "
+        "exactamente por la razón que imaginas."
+    ),
+}
 
 
 def run() -> None:
@@ -17,6 +34,8 @@ def run() -> None:
     parser.add_argument("--ffmpeg", type=Path)
     parser.add_argument("--ffprobe", type=Path)
     parser.add_argument("--tts-provider", choices=("fake", "edge", "elevenlabs"))
+    parser.add_argument("--tts-mode", choices=("live", "cached"))
+    parser.add_argument("--byte-voice-stress-test", action="store_true")
     parser.add_argument("--tts-voice")
     parser.add_argument("--tts-rate", type=int)
     parser.add_argument("--tts-volume", type=int)
@@ -33,6 +52,7 @@ def run() -> None:
         ffmpeg_path=arguments.ffmpeg or discovered.ffmpeg_path,
         ffprobe_path=arguments.ffprobe or discovered.ffprobe_path,
         tts_provider=arguments.tts_provider or discovered.tts_provider,
+        tts_mode=arguments.tts_mode or discovered.tts_mode,
         tts_voice=arguments.tts_voice or discovered.tts_voice,
         tts_rate=(
             arguments.tts_rate
@@ -63,6 +83,32 @@ def run() -> None:
         whisperx_model=discovered.whisperx_model,
         whisperx_device=discovered.whisperx_device,
     )
+    if arguments.byte_voice_stress_test:
+        if settings.tts_provider != "elevenlabs":
+            raise ValueError("--byte-voice-stress-test requires TTS_PROVIDER=elevenlabs")
+        results = []
+        for language, text in BYTE_VOICE_REFERENCES.items():
+            reference_pipeline = build_manual_pipeline(
+                settings,
+                ManualProductionInput(
+                    topic=f"Byte Voice v1 {language} reference",
+                    language=language,
+                ),
+                asset_provider=FakeAssetProvider(),
+            )
+            result = reference_pipeline.execute_tts_reference(
+                f"byte-voice-v1-{language}-reference", text
+            )
+            results.append(
+                {
+                    "language": language,
+                    "reused": result.reused,
+                    "artifact_path": result.artifact.relative_path.as_posix(),
+                    "metadata": result.artifact.metadata,
+                }
+            )
+        print(json.dumps(results, indent=2))
+        return
     production_input = ManualProductionInput(
         topic=arguments.topic,
         language=arguments.language,

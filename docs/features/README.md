@@ -6,6 +6,8 @@ deferred.
 
 | Date | Phase | Status |
 | --- | --- | --- |
+| 2026-09-06 | [Interactive visual storytelling](2026-09-06-interactive-visual-storytelling.md) | Implemented; deterministic visual direction and Byte choreography |
+| 2026-09-06 | [Credit-safe Byte Voice v1 workflow](2026-09-06-credit-safe-byte-voice-workflow.md) | Completed; live references are explicit and cached mode is safe |
 | 2026-09-06 | [ElevenLabs narration provider](2026-09-06-elevenlabs-narration-provider.md) | Implemented; real API smoke test pending credentials |
 | 2026-09-06 | [Structured content and dynamic captions](2026-09-06-structured-content-dynamic-captions.md) | Completed with fake alignment; WhisperX not executed |
 | 2026-09-06 | [Reusable character presenter slice](2026-09-06-reusable-character-presenter-slice.md) | Completed with offline and live real-provider runs |

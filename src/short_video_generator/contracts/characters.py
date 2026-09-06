@@ -7,7 +7,9 @@ from .audio import TextToSpeechOptions
 from .common import Contract
 
 PresenterPosition = Literal["bottom_left", "bottom_right", "bottom_center"]
-PresenterMotion = Literal["fade", "none"]
+PresenterMotion = Literal[
+    "fade", "none", "slide_left", "slide_right", "slide_up", "slide_down", "pop"
+]
 
 
 class CharacterDefinition(Contract):
@@ -44,6 +46,10 @@ class PresenterInstruction(Contract):
     entrance: PresenterMotion = "fade"
     exit: PresenterMotion = "fade"
     visibility: bool = True
+    action: str = "idle"
+    facing: str = "viewer"
+    motion_preset: str = "byte_idle_hover"
+    beats: tuple[dict[str, object], ...] = ()
 
 
 class CharacterAssetReference(Contract):
@@ -64,6 +70,10 @@ class CharacterAssetReference(Contract):
     scale: float = Field(ge=0.1, le=0.6)
     entrance: PresenterMotion = "fade"
     exit: PresenterMotion = "fade"
+    action: str = "idle"
+    facing: str = "viewer"
+    motion_preset: str = "byte_idle_hover"
+    beats: tuple[dict[str, object], ...] = ()
     fingerprint: str = Field(min_length=64, max_length=64)
 
     @field_validator("asset_relative_path")
