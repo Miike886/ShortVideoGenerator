@@ -14,4 +14,3 @@ class PipelineStep(StrEnum):
 
 
 VERTICAL_SLICE_STEPS: tuple[PipelineStep, ...] = tuple(PipelineStep)
-

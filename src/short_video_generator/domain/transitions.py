@@ -3,7 +3,6 @@ from collections.abc import Mapping
 from .enums import ProductionStatus, ReviewDecision
 from .errors import InvalidStateTransition
 
-
 PRODUCTION_TRANSITIONS: Mapping[ProductionStatus, frozenset[ProductionStatus]] = {
     ProductionStatus.SELECTED: frozenset({ProductionStatus.BRIEF_READY, ProductionStatus.FAILED}),
     ProductionStatus.BRIEF_READY: frozenset(
@@ -12,12 +11,8 @@ PRODUCTION_TRANSITIONS: Mapping[ProductionStatus, frozenset[ProductionStatus]] =
     ProductionStatus.SCRIPT_READY: frozenset(
         {ProductionStatus.ASSETS_READY, ProductionStatus.FAILED}
     ),
-    ProductionStatus.ASSETS_READY: frozenset(
-        {ProductionStatus.RENDERED, ProductionStatus.FAILED}
-    ),
-    ProductionStatus.RENDERED: frozenset(
-        {ProductionStatus.VALIDATING, ProductionStatus.FAILED}
-    ),
+    ProductionStatus.ASSETS_READY: frozenset({ProductionStatus.RENDERED, ProductionStatus.FAILED}),
+    ProductionStatus.RENDERED: frozenset({ProductionStatus.VALIDATING, ProductionStatus.FAILED}),
     ProductionStatus.VALIDATING: frozenset(
         {
             ProductionStatus.AWAITING_REVIEW,
@@ -51,4 +46,3 @@ def require_transition(current: ProductionStatus, target: ProductionStatus) -> N
 
 def review_target(decision: ReviewDecision) -> ProductionStatus:
     return ProductionStatus(decision.value)
-

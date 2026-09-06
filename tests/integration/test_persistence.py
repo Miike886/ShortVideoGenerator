@@ -20,4 +20,3 @@ def test_sqlite_schema_contains_vertical_slice_entities(tmp_path) -> None:
         "artifacts",
         "reviews",
     } <= tables
-

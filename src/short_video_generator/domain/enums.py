@@ -59,4 +59,3 @@ class ArtifactType(StrEnum):
     RENDER = "render"
     THUMBNAIL = "thumbnail"
     VALIDATION_REPORT = "validation_report"
-

@@ -20,4 +20,3 @@ class ValidationReport(Contract):
         if self.passed != expected:
             raise ValueError("passed must match the result of all blocking checks")
         return self
-

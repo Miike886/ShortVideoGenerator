@@ -1,7 +1,7 @@
 # MVP modular foundation
 
 - **Date:** 2026-09-05
-- **Status:** Completed with runtime verification pending
+- **Status:** Completed
 - **Branch:** `feat/mvp-modular-foundation`
 
 ## Objective
@@ -52,9 +52,14 @@ execute jobs.
 - Added unit tests for contracts, state transitions, provider determinism, safe artifact
   paths, and architecture boundaries.
 - Added integration tests for SQLite schema creation and the API health endpoint.
+- `uv run pytest -v` passed all 17 tests on Python 3.12.14 with two upstream deprecation
+  warnings from Starlette/AnyIO.
 - `git diff --check` completed without whitespace errors.
-- The Python test suite was not executed because Python and `uv` are not available in the
-  current environment. FFmpeg is also unavailable.
+- `uv run ruff check .` found two import-order violations; lint cleanup remains pending.
+- FFmpeg 9.0.1 and `ffprobe` were subsequently verified through explicit WinGet paths during
+  the deterministic vertical slice.
+
+The two Ruff findings were subsequently resolved during the deterministic vertical slice.
 
 ## Deferred work
 
@@ -63,4 +68,4 @@ execute jobs.
 - Review queue endpoints and UI.
 - Local TTS and media adapters.
 - FFmpeg rendering and `ffprobe` validation.
-- Runtime execution of the existing tests and generation of `uv.lock`.
+- Review of the two upstream test deprecation warnings.

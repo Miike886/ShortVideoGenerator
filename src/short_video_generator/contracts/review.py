@@ -14,4 +14,3 @@ class ReviewSubmission(Contract):
         if self.decision != ReviewDecision.APPROVED and not self.comment.strip():
             raise ValueError("comment is required for rejection or requested changes")
         return self
-

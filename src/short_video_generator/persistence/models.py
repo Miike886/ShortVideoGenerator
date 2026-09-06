@@ -2,7 +2,17 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from short_video_generator.domain.enums import (
@@ -73,6 +83,7 @@ class PipelineRunRecord(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     niche_id: Mapped[str] = mapped_column(ForeignKey("niches.id"), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     trigger: Mapped[RunTrigger] = mapped_column(String(20))
     status: Mapped[RunStatus] = mapped_column(String(20), default=RunStatus.QUEUED, index=True)
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
@@ -89,6 +100,9 @@ class PipelineRunRecord(TimestampMixin, Base):
 
 class TopicCandidateRecord(TimestampMixin, Base):
     __tablename__ = "topic_candidates"
+    __table_args__ = (
+        UniqueConstraint("pipeline_run_id", "external_id", name="uq_candidate_run_external"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     pipeline_run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.id"), index=True)
@@ -105,9 +119,7 @@ class TopicCandidateRecord(TimestampMixin, Base):
     risk_score: Mapped[float | None] = mapped_column(Float)
     total_score: Mapped[float | None] = mapped_column(Float)
     evaluation: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    status: Mapped[CandidateStatus] = mapped_column(
-        String(20), default=CandidateStatus.DISCOVERED
-    )
+    status: Mapped[CandidateStatus] = mapped_column(String(20), default=CandidateStatus.DISCOVERED)
 
     run: Mapped[PipelineRunRecord] = relationship(back_populates="candidates")
 
@@ -137,6 +149,11 @@ class ProductionRecord(TimestampMixin, Base):
 
 class StepRunRecord(Base):
     __tablename__ = "step_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "pipeline_run_id", "production_id", "step", name="uq_step_run_production_step"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     pipeline_run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.id"), index=True)
@@ -155,6 +172,9 @@ class StepRunRecord(Base):
 
 class ArtifactRecord(Base):
     __tablename__ = "artifacts"
+    __table_args__ = (
+        UniqueConstraint("production_id", "relative_path", name="uq_artifact_production_path"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     production_id: Mapped[str] = mapped_column(ForeignKey("productions.id"), index=True)
@@ -179,4 +199,3 @@ class ReviewRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     production: Mapped[ProductionRecord] = relationship(back_populates="reviews")
-

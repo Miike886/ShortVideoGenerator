@@ -4,4 +4,3 @@ class DomainError(Exception):
 
 class InvalidStateTransition(DomainError):
     pass
-

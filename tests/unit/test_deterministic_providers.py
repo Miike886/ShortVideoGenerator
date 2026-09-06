@@ -32,4 +32,3 @@ def test_editorial_output_is_stable_and_contract_valid() -> None:
     assert first_brief.topic == candidate.title
     assert len(script.scenes) == 3
     assert script.duration_seconds == 30
-

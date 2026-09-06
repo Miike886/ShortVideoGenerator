@@ -23,6 +23,7 @@ dev = [
 
 [project.scripts]
 svg-api = "short_video_generator.main:run"
+svg-run-manual = "short_video_generator.cli:run"
 svg-worker = "short_video_generator.worker:run"
 svg-scheduler = "short_video_generator.scheduler:run"
 

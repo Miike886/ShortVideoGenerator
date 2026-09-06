@@ -14,4 +14,3 @@ class NicheDefinition(Contract):
 class FixtureSourceDefinition(Contract):
     name: str = Field(default="fixture", min_length=1, max_length=200)
     enabled: bool = True
-
