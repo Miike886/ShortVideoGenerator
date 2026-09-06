@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.env
+data/*.db
+data/*.db-*
+storage/assets/**
+storage/renders/**
+storage/work/**
+!storage/assets/.gitkeep
+!storage/renders/.gitkeep
+!storage/work/.gitkeep
+
