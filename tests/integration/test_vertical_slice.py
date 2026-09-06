@@ -20,6 +20,7 @@ from short_video_generator.persistence.models import (
     TopicCandidateRecord,
 )
 from short_video_generator.providers.assets import FakeAssetProvider
+from short_video_generator.providers.characters import LocalCharacterAssetProvider
 from short_video_generator.providers.tts import FakeTextToSpeechProvider
 from short_video_generator.rendering import FfprobeAudioProbe
 
@@ -34,6 +35,7 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
     )
     tts = FakeTextToSpeechProvider()
     assets = FakeAssetProvider()
+    characters = LocalCharacterAssetProvider(Path("assets/characters"))
     pipeline = build_manual_pipeline(
         settings,
         ManualProductionInput(
@@ -43,6 +45,7 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         ),
         tts_provider=tts,
         asset_provider=assets,
+        character_provider=characters,
     )
 
     first = pipeline.execute("integration-fixture")
@@ -66,6 +69,7 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         ManualProductionInput(topic="A different topic", language="en"),
         tts_provider=tts,
         asset_provider=assets,
+        character_provider=characters,
     )
     with pytest.raises(ValueError, match="different production inputs"):
         changed_pipeline.execute("integration-fixture")
@@ -74,13 +78,14 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         assert session.scalar(select(func.count()).select_from(PipelineRunRecord)) == 1
         assert session.scalar(select(func.count()).select_from(TopicCandidateRecord)) == 1
         assert session.scalar(select(func.count()).select_from(ProductionRecord)) == 1
-        assert session.scalar(select(func.count()).select_from(StepRunRecord)) == 12
-        assert session.scalar(select(func.count()).select_from(ArtifactRecord)) == 8
+        assert session.scalar(select(func.count()).select_from(StepRunRecord)) == 13
+        assert session.scalar(select(func.count()).select_from(ArtifactRecord)) == 9
         assert set(session.scalars(select(StepRunRecord.status))) == {StepStatus.COMPLETED}
         step_records = session.scalars(select(StepRunRecord)).all()
         fingerprinted_steps = {
             "generate_audio",
             "plan_timeline",
+            "resolve_presenters",
             "generate_assets",
             "generate_subtitles",
         }
@@ -93,11 +98,23 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         render = next(item for item in artifacts if item.type == ArtifactType.RENDER)
         voice = next(item for item in artifacts if item.type == ArtifactType.VOICE)
         timeline = next(item for item in artifacts if item.type == ArtifactType.TIMELINE)
+        character_reference = next(
+            item for item in artifacts if item.type == ArtifactType.CHARACTER_REFERENCE
+        )
         subtitle = next(item for item in artifacts if item.type == ArtifactType.SUBTITLE)
-        for artifact in (voice, timeline, subtitle):
+        for artifact in (voice, timeline, character_reference, subtitle):
             assert len(artifact.artifact_metadata["input_fingerprint"]) == 64
         production = session.scalar(select(ProductionRecord))
         assert production is not None
+        presenters = [
+            scene["presenter"]
+            for scene in production.script["scenes"]
+            if scene["presenter"] is not None
+        ]
+        assert [presenter["pose"] for presenter in presenters] == ["explaining", "happy"]
+        presenter_refs = character_reference.artifact_metadata["presenters"]
+        assert {item["character_id"] for item in presenter_refs} == {"byte"}
+        assert {item["pose"] for item in presenter_refs} == {"explaining", "happy"}
         scene_duration = sum(scene["duration_seconds"] for scene in production.script["scenes"])
         audio_probe = FfprobeAudioProbe(settings.ffprobe_path).inspect(
             settings.storage_root / voice.relative_path

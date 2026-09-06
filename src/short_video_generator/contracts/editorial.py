@@ -1,5 +1,6 @@
 from pydantic import Field, model_validator
 
+from .characters import PresenterInstruction
 from .common import Contract
 
 
@@ -22,6 +23,7 @@ class ScriptScene(Contract):
     visual_direction: str = Field(min_length=1, max_length=1_000)
     visual_query: str = Field(default="", max_length=500)
     duration_seconds: float = Field(gt=0, le=60)
+    presenter: PresenterInstruction | None = None
 
 
 class VideoScript(Contract):

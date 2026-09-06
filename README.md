@@ -120,10 +120,22 @@ uv run svg-run-manual --topic "Why containers are useful" --language en `
 ```
 
 También se aceptan `TTS_PROVIDER`, `TTS_VOICE`, `TTS_RATE`, `TTS_VOLUME`,
-`ASSET_PROVIDER` y `PEXELS_API_KEY`; `.env.example` contiene la plantilla. Edge TTS requiere
-conectividad, pero no una clave propia. Pexels requiere su clave API y conserva atribución y
-metadatos de origen por asset. El flujo `fake` continúa siendo la referencia gratuita,
-reproducible y offline para desarrollo y pruebas.
+`ASSET_PROVIDER`, `PEXELS_API_KEY` y `DEFAULT_CHARACTER_ID`; `.env.example` contiene la
+plantilla. Edge TTS requiere conectividad, pero no una clave propia. Pexels requiere su clave
+API y conserva atribución y metadatos de origen por asset. El flujo `fake` continúa siendo la
+referencia gratuita, reproducible y offline para desarrollo y pruebas.
+
+## Presenter reutilizable
+
+El presenter Byte vive como asset compartido del proyecto en `assets/characters/byte/`.
+`character.yaml` declara versión, pose predeterminada, poses disponibles, posición preferida
+y escala. Las ejecuciones normales no llaman APIs de generación de imágenes para crear al
+personaje; sólo validan y reutilizan PNGs transparentes existentes.
+
+Para agregar otra pose, coloca `<pose>.png` en el directorio del personaje, agrégala a
+`available_poses` y aumenta la versión del personaje si el cambio debe invalidar renders
+previos. Para usar otro personaje en ejecuciones manuales, crea
+`assets/characters/<id>/character.yaml` y configura `DEFAULT_CHARACTER_ID=<id>`.
 
 ## Quality gate de desarrollo
 

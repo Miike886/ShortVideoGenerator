@@ -1,8 +1,10 @@
 import json
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from short_video_generator.contracts import (
+    CharacterAssetReference,
     GeneratedAsset,
     RenderRequest,
     RenderResult,
@@ -12,14 +14,24 @@ from short_video_generator.contracts import (
 from short_video_generator.domain.enums import ArtifactType
 
 
+@dataclass(frozen=True, slots=True)
+class PresenterLayout:
+    margin_x: int = 72
+    subtitle_safe_bottom: int = 320
+    fade_seconds: float = 0.25
+
+
 class MissingMediaExecutable(RuntimeError):
     pass
 
 
 class FfmpegRenderer:
-    def __init__(self, executable: Path, storage_root: Path) -> None:
+    def __init__(
+        self, executable: Path, storage_root: Path, presenter_layout: PresenterLayout | None = None
+    ) -> None:
         self.executable = executable
         self.storage_root = storage_root.resolve()
+        self.presenter_layout = presenter_layout or PresenterLayout()
 
     def render(self, request: RenderRequest, destination: Path) -> RenderResult:
         self._require_executable()
@@ -52,19 +64,61 @@ class FfmpegRenderer:
                     str(self.storage_root / visual.relative_path),
                 ]
             )
+        presenter_inputs = _presenter_inputs_by_scene(request.character_assets)
+        presenter_input_indexes: dict[int, int] = {}
+        for scene_order, presenter in presenter_inputs.items():
+            presenter_input_indexes[scene_order] = len(visuals) + len(presenter_input_indexes)
+            command.extend(
+                [
+                    "-loop",
+                    "1",
+                    "-t",
+                    str(_scene_duration(request, scene_order)),
+                    "-i",
+                    str(presenter.asset_path),
+                ]
+            )
         command.extend(["-i", str(self.storage_root / audio.relative_path)])
 
         video_chains = []
         concat_inputs = []
         for index, scene in enumerate(request.script.scenes):
+            scene_label = f"v{index}"
             video_chains.append(
                 f"[{index}:v]scale={request.template.width}:{request.template.height}:"
                 "force_original_aspect_ratio=increase,"
                 f"crop={request.template.width}:{request.template.height},"
                 f"setsar=1,fps={request.template.frames_per_second},"
-                f"trim=duration={scene.duration_seconds},setpts=PTS-STARTPTS[v{index}]"
+                f"trim=duration={scene.duration_seconds},setpts=PTS-STARTPTS[bg{index}]"
             )
-            concat_inputs.append(f"[v{index}]")
+            presenter = presenter_inputs.get(scene.order)
+            if presenter is not None:
+                presenter_index = presenter_input_indexes[scene.order]
+                presenter_label = f"p{index}"
+                height = max(1, int(request.template.height * presenter.scale))
+                fade_start = max(0, scene.duration_seconds - self.presenter_layout.fade_seconds)
+                fade_filters = ""
+                if presenter.entrance == "fade":
+                    fade_filters += (
+                        f",fade=t=in:st=0:d={self.presenter_layout.fade_seconds}:alpha=1"
+                    )
+                if presenter.exit == "fade":
+                    fade_filters += (
+                        f",fade=t=out:st={fade_start}:d={self.presenter_layout.fade_seconds}:alpha=1"
+                    )
+                video_chains.append(
+                    f"[{presenter_index}:v]format=rgba,scale=-1:{height},"
+                    f"fps={request.template.frames_per_second},"
+                    f"trim=duration={scene.duration_seconds},setpts=PTS-STARTPTS"
+                    f"{fade_filters}[{presenter_label}]"
+                )
+                x, y = self._presenter_position(presenter)
+                video_chains.append(
+                    f"[bg{index}][{presenter_label}]overlay=x={x}:y={y}:format=auto[{scene_label}]"
+                )
+            else:
+                video_chains.append(f"[bg{index}]copy[{scene_label}]")
+            concat_inputs.append(f"[{scene_label}]")
         subtitle_path = self.storage_root / subtitles.relative_path
         escaped_subtitle_path = _escape_filter_path(subtitle_path)
         filter_complex = ";".join(video_chains)
@@ -80,7 +134,7 @@ class FfmpegRenderer:
                 "-map",
                 "[video]",
                 "-map",
-                f"{len(visuals)}:a:0",
+                f"{len(visuals) + len(presenter_inputs)}:a:0",
                 "-c:v",
                 "libx264",
                 "-preset",
@@ -107,6 +161,14 @@ class FfmpegRenderer:
             ),
             duration_seconds=request.script.duration_seconds,
         )
+
+    def _presenter_position(self, presenter: CharacterAssetReference) -> tuple[str, str]:
+        y = f"H-h-{self.presenter_layout.subtitle_safe_bottom}"
+        if presenter.position == "bottom_left":
+            return str(self.presenter_layout.margin_x), y
+        if presenter.position == "bottom_center":
+            return "(W-w)/2", y
+        return f"W-w-{self.presenter_layout.margin_x}", y
 
     def _require_executable(self) -> None:
         if not self.executable.is_file():
@@ -195,6 +257,18 @@ class FfprobeValidator:
 
 def _escape_filter_path(path: Path) -> str:
     return path.as_posix().replace(":", r"\:").replace("'", r"\'")
+
+
+def _presenter_inputs_by_scene(
+    presenters: tuple[CharacterAssetReference, ...],
+) -> dict[int, CharacterAssetReference]:
+    return {presenter.scene_order: presenter for presenter in presenters}
+
+
+def _scene_duration(request: RenderRequest, scene_order: int) -> float:
+    return next(
+        scene.duration_seconds for scene in request.script.scenes if scene.order == scene_order
+    )
 
 
 def _frame_rate(value: str) -> float:

@@ -3,6 +3,26 @@
 This changelog records meaningful product and architecture changes. Detailed context lives
 in the linked records under `docs/features/`.
 
+## 2026-09-06
+
+### Added
+
+- Reusable Byte presenter character definition and transparent PNG pose assets.
+- Presenter scene instructions, local character asset loading, pose validation, and
+  character-version/content fingerprints.
+- `resolve_presenters` pipeline step with a `presenters.json` reference artifact.
+- FFmpeg presenter overlay composition with subtitle-safe placement and fade-in/fade-out.
+- Offline tests for character loading, deterministic presenter planning, renderer inputs, and
+  the integrated review-ready vertical slice.
+
+### Changed
+
+- The deterministic manual script now places Byte in two scenes with different poses while
+  leaving presenter data optional for other scenes.
+- Manual run configuration includes `DEFAULT_CHARACTER_ID`.
+- The reusable character presenter slice has now been validated with a live Edge TTS + Pexels
+  manual run after explicit `.env` authorization.
+
 ## 2026-09-05
 
 ### Added

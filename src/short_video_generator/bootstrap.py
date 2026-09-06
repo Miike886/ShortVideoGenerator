@@ -20,12 +20,17 @@ from short_video_generator.pipeline.orchestrator import ManualPipeline
 from short_video_generator.pipeline.review import ReviewService
 from short_video_generator.pipeline.steps import StepExecutor
 from short_video_generator.providers.assets import FakeAssetProvider, PexelsAssetProvider
+from short_video_generator.providers.characters import LocalCharacterAssetProvider
 from short_video_generator.providers.deterministic import (
     DeterministicEditorialProvider,
     FixtureSourceProvider,
 )
 from short_video_generator.providers.evaluation import DeterministicCandidateEvaluator
-from short_video_generator.providers.ports import AssetProvider, TextToSpeechProvider
+from short_video_generator.providers.ports import (
+    AssetProvider,
+    CharacterAssetProvider,
+    TextToSpeechProvider,
+)
 from short_video_generator.providers.tts import (
     EdgeTextToSpeechProvider,
     FakeTextToSpeechProvider,
@@ -63,6 +68,7 @@ def build_manual_pipeline(
     production_input: ManualProductionInput | None = None,
     tts_provider: TextToSpeechProvider | None = None,
     asset_provider: AssetProvider | None = None,
+    character_provider: CharacterAssetProvider | None = None,
 ) -> ManualPipeline:
     if settings.ffmpeg_path is None:
         raise RuntimeError("FFmpeg not found; set SVG_FFMPEG_PATH or add ffmpeg to PATH")
@@ -75,6 +81,9 @@ def build_manual_pipeline(
     )
     speech = tts_provider or _build_tts_provider(settings)
     assets = asset_provider or _build_asset_provider(settings)
+    characters = character_provider or LocalCharacterAssetProvider(
+        settings.project_root / "assets" / "characters"
+    )
     engine = build_engine(settings)
     create_schema(engine)
     sessions = session_factory(engine)
@@ -92,6 +101,7 @@ def build_manual_pipeline(
         language=production_input.language,
         audio_probe=FfprobeAudioProbe(settings.ffprobe_path),
         assets=assets,
+        characters=characters,
         subtitles=BasicSubtitleProvider(),
         renderer=FfmpegRenderer(settings.ffmpeg_path, settings.storage_root),
     )
@@ -105,14 +115,16 @@ def build_manual_pipeline(
         canonical_url=f"https://example.test/manual/{topic_hash}",
         source_payload={"manual": True, **production_input.model_dump(mode="json")},
     )
-    fingerprint = _input_fingerprint(production_input, settings, speech, assets)
+    fingerprint = _input_fingerprint(production_input, settings, speech, assets, characters)
     return ManualPipeline(
         repository=repository,
         store=store,
         source=FixtureSourceProvider([candidate]),
         evaluator=DeterministicCandidateEvaluator(),
         editorial=DeterministicEditorialProvider(
-            production_input.language, production_input.target_duration_seconds
+            production_input.language,
+            production_input.target_duration_seconds,
+            settings.default_character_id,
         ),
         media_workflow=media_workflow,
         validator=FfprobeValidator(settings.ffprobe_path),
@@ -130,6 +142,7 @@ def default_idempotency_key(
         "tts_rate": settings.tts_rate,
         "tts_volume": settings.tts_volume,
         "asset_provider": settings.asset_provider,
+        "default_character_id": settings.default_character_id,
     }
     digest = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -160,6 +173,7 @@ def _input_fingerprint(
     settings: Settings,
     speech: TextToSpeechProvider,
     assets: AssetProvider,
+    characters: CharacterAssetProvider,
 ) -> str:
     payload = {
         "input": production_input.model_dump(mode="json"),
@@ -174,6 +188,11 @@ def _input_fingerprint(
             "provider": assets.provider_name,
             "version": assets.provider_version,
             "strategy": assets.selection_strategy_version,
+        },
+        "characters": {
+            "provider": characters.provider_name,
+            "version": characters.provider_version,
+            "default_character_id": settings.default_character_id,
         },
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()

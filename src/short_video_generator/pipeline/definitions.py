@@ -9,6 +9,7 @@ class PipelineStep(StrEnum):
     CREATE_SCRIPT = "create_script"
     GENERATE_AUDIO = "generate_audio"
     PLAN_TIMELINE = "plan_timeline"
+    RESOLVE_PRESENTERS = "resolve_presenters"
     GENERATE_ASSETS = "generate_assets"
     GENERATE_SUBTITLES = "generate_subtitles"
     RENDER = "render"

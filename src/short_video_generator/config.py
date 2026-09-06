@@ -17,6 +17,7 @@ class Settings:
     tts_volume: int = 100
     asset_provider: str = "fake"
     pexels_api_key: str | None = None
+    default_character_id: str = "byte"
 
     @classmethod
     def local(cls, project_root: Path | None = None) -> "Settings":
@@ -40,6 +41,7 @@ class Settings:
             ),
             asset_provider=os.environ.get("ASSET_PROVIDER", "fake"),
             pexels_api_key=os.environ.get("PEXELS_API_KEY") or None,
+            default_character_id=os.environ.get("DEFAULT_CHARACTER_ID", "byte"),
         )
 
     @property

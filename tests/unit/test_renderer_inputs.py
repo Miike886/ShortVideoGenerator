@@ -2,7 +2,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from short_video_generator.contracts import (
+    CharacterAssetReference,
     GeneratedAsset,
+    PresenterInstruction,
     RenderRequest,
     ScriptScene,
     VideoScript,
@@ -32,6 +34,11 @@ def test_renderer_loops_and_crops_video_assets(monkeypatch, tmp_path) -> None:
                 visual_direction="Real asset",
                 visual_query="developer laptop",
                 duration_seconds=2,
+                presenter=(
+                    PresenterInstruction(character_id="byte", pose="explaining")
+                    if index == 1
+                    else None
+                ),
             )
             for index in range(1, 4)
         ),
@@ -58,8 +65,30 @@ def test_renderer_loops_and_crops_video_assets(monkeypatch, tmp_path) -> None:
         ),
     )
 
+    presenter_path = tmp_path / "byte.png"
+    presenter_path.write_text("fixture", encoding="utf-8")
     FfmpegRenderer(executable, tmp_path).render(
-        RenderRequest(production_id="production", script=script, assets=assets),
+        RenderRequest(
+            production_id="production",
+            script=script,
+            assets=assets,
+            character_assets=(
+                CharacterAssetReference(
+                    scene_order=1,
+                    character_id="byte",
+                    character_name="Byte",
+                    character_version="byte-v1",
+                    pose="explaining",
+                    asset_path=presenter_path,
+                    asset_relative_path=Path("assets/characters/byte/explaining.png"),
+                    width=360,
+                    height=560,
+                    position="bottom_right",
+                    scale=0.32,
+                    fingerprint="a" * 64,
+                ),
+            ),
+        ),
         tmp_path / "work",
     )
 
@@ -69,3 +98,7 @@ def test_renderer_loops_and_crops_video_assets(monkeypatch, tmp_path) -> None:
     assert "force_original_aspect_ratio=increase" in filter_complex
     assert "crop=1080:1920" in filter_complex
     assert "trim=duration=2.0" in filter_complex
+    assert str(presenter_path) in command
+    assert "format=rgba" in filter_complex
+    assert "fade=t=in" in filter_complex
+    assert "overlay=x=W-w-72:y=H-h-320" in filter_complex

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from short_video_generator.contracts import (
+    CharacterAssetReference,
     GeneratedAsset,
     RenderRequest,
     TextToSpeechOptions,
@@ -22,6 +23,7 @@ from short_video_generator.pipeline.steps import StepExecutor
 from short_video_generator.pipeline.timeline import fit_script_to_audio
 from short_video_generator.providers.ports import (
     AssetProvider,
+    CharacterAssetProvider,
     Renderer,
     TextToSpeechProvider,
 )
@@ -30,6 +32,7 @@ from short_video_generator.providers.ports import (
 class NarratedMediaWorkflow:
     timeline_version = "word-weighted-v1"
     subtitle_version = "scene-srt-v1"
+    presenter_version = "deterministic-presenter-v1"
 
     def __init__(
         self,
@@ -40,6 +43,7 @@ class NarratedMediaWorkflow:
         language: str,
         audio_probe: AudioProbe,
         assets: AssetProvider,
+        characters: CharacterAssetProvider,
         subtitles: SubtitleProvider,
         renderer: Renderer,
     ) -> None:
@@ -50,12 +54,14 @@ class NarratedMediaWorkflow:
         self.language = language
         self.audio_probe = audio_probe
         self.assets = assets
+        self.characters = characters
         self.subtitles = subtitles
         self.renderer = renderer
 
     def render(self, execution: ExecutionState, production: ProductionState, work: Path) -> Path:
         audio = self._generate_audio(execution, production, work)
         self._plan_timeline(execution, production, audio, work)
+        self._resolve_presenters(execution, production, work)
         self._generate_visuals(execution, production, work)
         self._generate_subtitles(execution, production, work)
         return self._render_video(execution, production, work)
@@ -106,6 +112,63 @@ class NarratedMediaWorkflow:
         return self.steps.run(
             execution,
             PipelineStep.GENERATE_AUDIO,
+            production.id,
+            action,
+            fingerprint,
+        )
+
+    def _resolve_presenters(
+        self, execution: ExecutionState, production: ProductionState, work: Path
+    ) -> None:
+        script = VideoScript.model_validate(production.script)
+        presenter_assets = self._presenter_assets(script)
+        fingerprint = _fingerprint(
+            {
+                "provider": self.characters.provider_name,
+                "provider_version": self.characters.provider_version,
+                "planner": self.presenter_version,
+                "presenters": [
+                    asset.model_dump(mode="json", exclude={"asset_path"})
+                    for asset in presenter_assets
+                ],
+            }
+        )
+        artifact = _artifact(execution, ArtifactType.CHARACTER_REFERENCE)
+        if (
+            artifact is not None
+            and artifact.metadata.get("input_fingerprint") == fingerprint
+            and self.steps.completed(
+                execution, PipelineStep.RESOLVE_PRESENTERS, production.id, fingerprint
+            )
+        ):
+            return
+
+        def action() -> None:
+            payload = {
+                "planner": self.presenter_version,
+                "presenters": [
+                    asset.model_dump(mode="json", exclude={"asset_path"})
+                    for asset in presenter_assets
+                ],
+            }
+            reference_path = self.store.write_text(
+                work, "presenters.json", json.dumps(payload, indent=2, sort_keys=True)
+            )
+            stored = self.store.promote(
+                reference_path,
+                self.store.asset_directory(production.id) / reference_path.name,
+            )
+            _upsert_artifact(
+                execution,
+                ArtifactType.CHARACTER_REFERENCE,
+                "application/json",
+                payload | {"input_fingerprint": fingerprint},
+                stored,
+            )
+
+        self.steps.run(
+            execution,
+            PipelineStep.RESOLVE_PRESENTERS,
             production.id,
             action,
             fingerprint,
@@ -308,6 +371,9 @@ class NarratedMediaWorkflow:
                     production_id=production.id,
                     script=VideoScript.model_validate(production.script),
                     assets=tuple(_artifact_contracts(execution)),
+                    character_assets=tuple(
+                        self._presenter_assets(VideoScript.model_validate(production.script))
+                    ),
                 ),
                 work,
             )
@@ -326,6 +392,13 @@ class NarratedMediaWorkflow:
             return stored.absolute_path
 
         return self.steps.run(execution, PipelineStep.RENDER, production.id, action)
+
+    def _presenter_assets(self, script: VideoScript) -> list[CharacterAssetReference]:
+        return [
+            self.characters.resolve(scene.presenter, scene.order)
+            for scene in script.scenes
+            if scene.presenter is not None
+        ]
 
 
 def _fingerprint(payload: dict[str, object]) -> str:
@@ -365,7 +438,12 @@ def _upsert_artifact(
             for item in execution.artifacts
             if item.relative_path == stored.relative_path
             or (
-                artifact_type in {ArtifactType.IMAGE, ArtifactType.VIDEO_CLIP}
+                artifact_type
+                in {
+                    ArtifactType.CHARACTER_REFERENCE,
+                    ArtifactType.IMAGE,
+                    ArtifactType.VIDEO_CLIP,
+                }
                 and item.artifact_type in {ArtifactType.IMAGE, ArtifactType.VIDEO_CLIP}
                 and item.metadata.get("scene_order") == metadata.get("scene_order")
             )
