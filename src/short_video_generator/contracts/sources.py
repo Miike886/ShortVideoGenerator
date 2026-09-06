@@ -12,4 +12,3 @@ class CandidateInput(Contract):
     canonical_url: HttpUrl
     published_at: datetime | None = None
     source_payload: dict[str, object] = Field(default_factory=dict)
-

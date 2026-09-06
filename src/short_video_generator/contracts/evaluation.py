@@ -14,4 +14,3 @@ class CandidateEvaluation(Contract):
     @property
     def is_blocked(self) -> bool:
         return bool(self.blocking_flags)
-

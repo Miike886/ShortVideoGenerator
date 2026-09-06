@@ -41,3 +41,17 @@ class RenderRequest(Contract):
 class RenderResult(Contract):
     render: GeneratedAsset
     duration_seconds: float = Field(gt=0)
+
+
+class LocalFileDraft(Contract):
+    artifact_type: ArtifactType
+    relative_path: Path
+    media_type: str = Field(min_length=1, max_length=100)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+    @field_validator("relative_path")
+    @classmethod
+    def path_must_be_a_safe_filename(cls, value: Path) -> Path:
+        if value.is_absolute() or ".." in value.parts:
+            raise ValueError("draft path must be relative and cannot traverse parents")
+        return value

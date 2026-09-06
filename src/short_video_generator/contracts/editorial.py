@@ -39,4 +39,3 @@ class VideoScript(Contract):
     @property
     def duration_seconds(self) -> float:
         return sum(scene.duration_seconds for scene in self.scenes)
-
