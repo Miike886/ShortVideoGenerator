@@ -7,6 +7,9 @@ in the linked records under `docs/features/`.
 
 ### Added
 
+- Optional ElevenLabs narration provider using the official Python SDK, configurable voice
+  identity/version, safe request metadata, and bounded transient retries.
+- Offline mocked tests for ElevenLabs configuration, SDK boundary behavior, and TTS fingerprints.
 - Structured five-scene script roles for hook, context, fact, development, and conclusion.
 - `CaptionAlignmentProvider` with deterministic fake known-text word timings and an isolated
   optional WhisperX adapter path.
@@ -22,6 +25,7 @@ in the linked records under `docs/features/`.
 
 ### Changed
 
+- Manual TTS provider selection now supports `elevenlabs`; SFX and music remain deferred.
 - The deterministic manual script now places Byte in two scenes with different poses while
   leaving presenter data optional for other scenes.
 - Manual run configuration includes `DEFAULT_CHARACTER_ID`.

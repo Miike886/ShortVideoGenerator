@@ -6,6 +6,7 @@ deferred.
 
 | Date | Phase | Status |
 | --- | --- | --- |
+| 2026-09-06 | [ElevenLabs narration provider](2026-09-06-elevenlabs-narration-provider.md) | Implemented; real API smoke test pending credentials |
 | 2026-09-06 | [Structured content and dynamic captions](2026-09-06-structured-content-dynamic-captions.md) | Completed with fake alignment; WhisperX not executed |
 | 2026-09-06 | [Reusable character presenter slice](2026-09-06-reusable-character-presenter-slice.md) | Completed with offline and live real-provider runs |
 | 2026-09-05 | [Temporary artifact hygiene](2026-09-05-temp-artifact-hygiene.md) | Completed |

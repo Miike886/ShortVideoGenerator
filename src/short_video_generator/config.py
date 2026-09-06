@@ -15,6 +15,15 @@ class Settings:
     tts_voice: str | None = None
     tts_rate: int = 0
     tts_volume: int = 100
+    elevenlabs_api_key: str | None = None
+    elevenlabs_voice_id: str | None = None
+    elevenlabs_voice_version: str = "byte_voice_dev_v1"
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+    elevenlabs_stability: float = 0.5
+    elevenlabs_similarity_boost: float = 0.75
+    elevenlabs_style: float = 0.0
+    elevenlabs_use_speaker_boost: bool = True
+    elevenlabs_speed: float = 1.0
     asset_provider: str = "fake"
     pexels_api_key: str | None = None
     default_character_id: str = "byte"
@@ -42,6 +51,23 @@ class Settings:
             tts_volume=int(
                 os.environ.get("TTS_VOLUME", os.environ.get("SVG_TTS_VOLUME", "100"))
             ),
+            elevenlabs_api_key=os.environ.get("ELEVENLABS_API_KEY") or None,
+            elevenlabs_voice_id=os.environ.get("ELEVENLABS_VOICE_ID") or None,
+            elevenlabs_voice_version=os.environ.get(
+                "ELEVENLABS_VOICE_VERSION", "byte_voice_dev_v1"
+            ),
+            elevenlabs_model_id=os.environ.get(
+                "ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"
+            ),
+            elevenlabs_stability=float(os.environ.get("ELEVENLABS_STABILITY", "0.5")),
+            elevenlabs_similarity_boost=float(
+                os.environ.get("ELEVENLABS_SIMILARITY_BOOST", "0.75")
+            ),
+            elevenlabs_style=float(os.environ.get("ELEVENLABS_STYLE", "0.0")),
+            elevenlabs_use_speaker_boost=_env_bool(
+                "ELEVENLABS_USE_SPEAKER_BOOST", True
+            ),
+            elevenlabs_speed=float(os.environ.get("ELEVENLABS_SPEED", "1.0")),
             asset_provider=os.environ.get("ASSET_PROVIDER", "fake"),
             pexels_api_key=os.environ.get("PEXELS_API_KEY") or None,
             default_character_id=os.environ.get("DEFAULT_CHARACTER_ID", "byte"),
@@ -63,3 +89,13 @@ def _resolve_executable(environment_name: str, command: str) -> Path | None:
         return Path(configured).expanduser().resolve()
     discovered = shutil.which(command)
     return Path(discovered).resolve() if discovered else None
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized not in {"true", "false", "1", "0", "yes", "no"}:
+        raise ValueError(f"{name} must be a boolean value")
+    return normalized in {"true", "1", "yes"}

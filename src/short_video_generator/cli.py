@@ -16,7 +16,7 @@ def run() -> None:
     parser.add_argument("--idempotency-key")
     parser.add_argument("--ffmpeg", type=Path)
     parser.add_argument("--ffprobe", type=Path)
-    parser.add_argument("--tts-provider", choices=("fake", "edge"))
+    parser.add_argument("--tts-provider", choices=("fake", "edge", "elevenlabs"))
     parser.add_argument("--tts-voice")
     parser.add_argument("--tts-rate", type=int)
     parser.add_argument("--tts-volume", type=int)
@@ -44,6 +44,15 @@ def run() -> None:
             if arguments.tts_volume is not None
             else discovered.tts_volume
         ),
+        elevenlabs_api_key=discovered.elevenlabs_api_key,
+        elevenlabs_voice_id=discovered.elevenlabs_voice_id,
+        elevenlabs_voice_version=discovered.elevenlabs_voice_version,
+        elevenlabs_model_id=discovered.elevenlabs_model_id,
+        elevenlabs_stability=discovered.elevenlabs_stability,
+        elevenlabs_similarity_boost=discovered.elevenlabs_similarity_boost,
+        elevenlabs_style=discovered.elevenlabs_style,
+        elevenlabs_use_speaker_boost=discovered.elevenlabs_use_speaker_boost,
+        elevenlabs_speed=discovered.elevenlabs_speed,
         asset_provider=arguments.asset_provider or discovered.asset_provider,
         pexels_api_key=discovered.pexels_api_key,
         default_character_id=arguments.default_character_id or discovered.default_character_id,

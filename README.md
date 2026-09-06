@@ -125,6 +125,23 @@ plantilla. Edge TTS requiere conectividad, pero no una clave propia. Pexels requ
 API y conserva atribución y metadatos de origen por asset. El flujo `fake` continúa siendo la
 referencia gratuita, reproducible y offline para desarrollo y pruebas.
 
+## ElevenLabs narration
+
+Para probar la narracion de ElevenLabs durante desarrollo local, instala su dependencia
+opcional y configura `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` y las variables de voz de
+`.env.example`:
+
+```powershell
+uv sync --extra elevenlabs
+$env:TTS_PROVIDER = "elevenlabs"
+uv run svg-run-manual --topic "Why structured captions help" --language en
+```
+
+El modelo predeterminado es `eleven_multilingual_v2`, con la identidad versionada como
+`byte_voice_dev_v1`. Los resultados del plan gratuito son solo para desarrollo/pruebas; el
+uso comercial o publico debe cumplir los terminos del plan activo y los derechos de la voz.
+Esta slice no genera SFX ni musica.
+
 ## Presenter reutilizable
 
 El presenter Byte vive como asset compartido del proyecto en `assets/characters/byte/`.
