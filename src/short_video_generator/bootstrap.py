@@ -38,6 +38,7 @@ from short_video_generator.providers.ports import (
 )
 from short_video_generator.providers.tts import (
     EdgeTextToSpeechProvider,
+    ElevenLabsTextToSpeechProvider,
     FakeTextToSpeechProvider,
 )
 from short_video_generator.rendering import (
@@ -101,9 +102,20 @@ def build_manual_pipeline(
         store=store,
         speech=speech,
         speech_options=TextToSpeechOptions(
-            voice=settings.tts_voice,
+            voice=(
+                settings.elevenlabs_voice_id
+                if settings.tts_provider == "elevenlabs"
+                else settings.tts_voice
+            ),
+            voice_version=settings.elevenlabs_voice_version,
+            model_id=settings.elevenlabs_model_id,
             rate=settings.tts_rate,
             volume=settings.tts_volume,
+            stability=settings.elevenlabs_stability,
+            similarity_boost=settings.elevenlabs_similarity_boost,
+            style=settings.elevenlabs_style,
+            use_speaker_boost=settings.elevenlabs_use_speaker_boost,
+            speed=settings.elevenlabs_speed,
         ),
         language=production_input.language,
         audio_probe=FfprobeAudioProbe(settings.ffprobe_path),
@@ -152,6 +164,14 @@ def default_idempotency_key(
         "tts_voice": settings.tts_voice,
         "tts_rate": settings.tts_rate,
         "tts_volume": settings.tts_volume,
+        "elevenlabs_voice_id": settings.elevenlabs_voice_id,
+        "elevenlabs_voice_version": settings.elevenlabs_voice_version,
+        "elevenlabs_model_id": settings.elevenlabs_model_id,
+        "elevenlabs_stability": settings.elevenlabs_stability,
+        "elevenlabs_similarity_boost": settings.elevenlabs_similarity_boost,
+        "elevenlabs_style": settings.elevenlabs_style,
+        "elevenlabs_use_speaker_boost": settings.elevenlabs_use_speaker_boost,
+        "elevenlabs_speed": settings.elevenlabs_speed,
         "asset_provider": settings.asset_provider,
         "default_character_id": settings.default_character_id,
         "caption_alignment_provider": settings.caption_alignment_provider,
@@ -169,6 +189,13 @@ def _build_tts_provider(settings: Settings) -> TextToSpeechProvider:
         return FakeTextToSpeechProvider()
     if settings.tts_provider == "edge":
         return EdgeTextToSpeechProvider()
+    if settings.tts_provider == "elevenlabs":
+        return ElevenLabsTextToSpeechProvider(
+            api_key=settings.elevenlabs_api_key,
+            voice_id=settings.elevenlabs_voice_id,
+            model_id=settings.elevenlabs_model_id,
+            voice_version=settings.elevenlabs_voice_version,
+        )
     raise ValueError(f"Unsupported TTS provider: {settings.tts_provider}")
 
 
@@ -211,6 +238,13 @@ def _input_fingerprint(
             "voice": settings.tts_voice,
             "rate": settings.tts_rate,
             "volume": settings.tts_volume,
+            "voice_version": settings.elevenlabs_voice_version,
+            "model_id": settings.elevenlabs_model_id,
+            "stability": settings.elevenlabs_stability,
+            "similarity_boost": settings.elevenlabs_similarity_boost,
+            "style": settings.elevenlabs_style,
+            "use_speaker_boost": settings.elevenlabs_use_speaker_boost,
+            "speed": settings.elevenlabs_speed,
         },
         "assets": {
             "provider": assets.provider_name,
