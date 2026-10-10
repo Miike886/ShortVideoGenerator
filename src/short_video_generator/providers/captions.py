@@ -77,5 +77,5 @@ class WhisperXCaptionAlignmentProvider:
 
 
 def _script_words(script: VideoScript) -> tuple[str, ...]:
-    text = " ".join(scene.narration for scene in script.scenes)
+    text = " ".join(scene.effective_display_text for scene in script.scenes)
     return tuple(match.group(0) for match in _WORD_PATTERN.finditer(text))

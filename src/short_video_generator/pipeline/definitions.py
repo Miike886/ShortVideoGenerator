@@ -7,6 +7,7 @@ class PipelineStep(StrEnum):
     SELECT = "select"
     CREATE_BRIEF = "create_brief"
     CREATE_SCRIPT = "create_script"
+    EDITORIAL_GATE = "editorial_gate"
     GENERATE_AUDIO = "generate_audio"
     PLAN_TIMELINE = "plan_timeline"
     RESOLVE_PRESENTERS = "resolve_presenters"

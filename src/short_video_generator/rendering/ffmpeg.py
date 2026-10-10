@@ -84,10 +84,28 @@ class FfmpegRenderer:
         concat_inputs = []
         for index, scene in enumerate(request.script.scenes):
             scene_label = f"v{index}"
+            direction = (
+                request.visual_directions[index]
+                if index < len(request.visual_directions)
+                else None
+            )
+            motion = direction.motion if direction is not None else "static"
+            if motion == "static":
+                scale_target = f"{request.template.width}:{request.template.height}"
+                crop_x = "0"
+            else:
+                scale_target = (
+                    f"{int(request.template.width * 1.1)}:"
+                    f"{int(request.template.height * 1.1)}"
+                )
+                crop_x = {
+                    "pan_left": "iw-1080",
+                    "pan_right": "0",
+                }.get(motion, "(iw-1080)/2")
             video_chains.append(
-                f"[{index}:v]scale={request.template.width}:{request.template.height}:"
+                f"[{index}:v]scale={scale_target}:"
                 "force_original_aspect_ratio=increase,"
-                f"crop={request.template.width}:{request.template.height},"
+                f"crop={request.template.width}:{request.template.height}:x={crop_x},"
                 f"setsar=1,fps={request.template.frames_per_second},"
                 f"trim=duration={scene.duration_seconds},setpts=PTS-STARTPTS[bg{index}]"
             )
@@ -113,6 +131,14 @@ class FfmpegRenderer:
                     f"{fade_filters}[{presenter_label}]"
                 )
                 x, y = self._presenter_position(presenter)
+                if presenter.entrance == "slide_left":
+                    x = f"if(lt(t,0.35),-w+({x})*t/0.35,{x})"
+                elif presenter.entrance == "slide_right":
+                    x = f"if(lt(t,0.35),W+({x}-W)*t/0.35,{x})"
+                elif presenter.entrance == "slide_up":
+                    y = f"if(lt(t,0.35),H+({y}-H)*t/0.35,{y})"
+                elif presenter.exit == "slide_down":
+                    y = f"if(lt(t,{fade_start}),{y},H+( {y}-H)*(t-{fade_start})/0.35)"
                 video_chains.append(
                     f"[bg{index}][{presenter_label}]overlay=x={x}:y={y}:format=auto[{scene_label}]"
                 )

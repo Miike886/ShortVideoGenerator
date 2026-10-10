@@ -138,9 +138,16 @@ uv run svg-run-manual --topic "Why structured captions help" --language en
 ```
 
 El modelo predeterminado es `eleven_multilingual_v2`, con la identidad versionada como
-`byte_voice_dev_v1`. Los resultados del plan gratuito son solo para desarrollo/pruebas; el
+`byte_voice_v1`. Los resultados del plan gratuito son solo para desarrollo/pruebas; el
 uso comercial o publico debe cumplir los terminos del plan activo y los derechos de la voz.
 Esta slice no genera SFX ni musica.
+
+## TTS credit-safe workflow
+
+Para desarrollo visual, usa `TTS_MODE=cached`: los artifacts de narracion existentes se
+reutilizan y un cache miss falla sin llamar a ElevenLabs. Usa `TTS_MODE=live` solo cuando la
+narracion deba cambiar, genera una vez y vuelve a `cached`. El comando
+`--byte-voice-stress-test` genera o reutiliza las dos referencias controladas de Byte Voice v1.
 
 ## Presenter reutilizable
 

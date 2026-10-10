@@ -2,7 +2,8 @@
 
 ## Status
 
-Implemented as an optional local development provider. Automated tests remain offline.
+Implemented as an optional local development provider. Automated tests remain offline, and a
+real smoke test plus full E2E validation have completed locally.
 
 ## Delivered behavior
 
@@ -23,7 +24,7 @@ Install the optional dependency with `uv sync --extra elevenlabs`, then configur
 TTS_PROVIDER=elevenlabs
 ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
-ELEVENLABS_VOICE_VERSION=byte_voice_dev_v1
+ELEVENLABS_VOICE_VERSION=byte_voice_v1
 ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 ELEVENLABS_STABILITY=0.5
 ELEVENLABS_SIMILARITY_BOOST=0.75
@@ -34,7 +35,7 @@ ELEVENLABS_SPEED=1.0
 
 `eleven_multilingual_v2` is the default because ElevenLabs documents it as a stable
 long-form model with Spanish support. The voice identity is centralized in settings and
-versioned separately so `byte_voice_dev_v1` can later be replaced by a production identity.
+versioned as `byte_voice_v1` for the selected Byte voice.
 
 The implementation uses the official `elevenlabs` SDK version resolved in `uv.lock` and the
 current `text_to_speech.with_raw_response.convert` API. The raw response is used only to
@@ -59,7 +60,10 @@ SFX and music are intentionally deferred to a separate audio identity/library sl
 ## Validation and limitations
 
 - Unit tests mock the SDK boundary and never call ElevenLabs.
-- The real API smoke test is pending until an API key and voice ID are available in the local
-  environment.
+- The real smoke test generated a 10.031-second MP3 with 171 characters and reused it on an
+  identical second run without another request.
+- Full E2E generated production `2032d837-cb74-4103-8322-414ddd2a1a74`, reached
+  `awaiting_review`, and produced a valid 1080x1920 H.264/AAC MP4. The identical second run
+  reused the production and narration artifact.
 - The provider does not add chunking because the current short-form script fits the documented
   model limits; sentence-boundary chunking can be added if real usage demonstrates a need.

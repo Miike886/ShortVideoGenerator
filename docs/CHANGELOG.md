@@ -3,10 +3,31 @@
 This changelog records meaningful product and architecture changes. Detailed context lives
 in the linked records under `docs/features/`.
 
+## 2026-10-10
+
+### Validated
+
+- Publication checks passed: 56 tests with FFmpeg integration, architecture boundaries,
+  Ruff, lockfile and Git whitespace checks; two upstream deprecation warnings remain.
+- Re-rendered a local preview using cached real narration, Pexels clips and Byte assets;
+  ffprobe validated H.264/AAC portrait output. No new full production was executed.
+- Clarified the fixed five-scene planner and the structural-only Editorial Gate limitations
+  in the feature records.
+
 ## 2026-09-06
 
 ### Added
 
+- Persisted `editorial_gate` step that validates semantic stories and stops failed
+  productions before narration generation.
+- Semantic story plans with central claims, scene responsibilities, redundancy diagnostics,
+  concrete visual concepts and observable-action search planning.
+- Semantic scene visual directions, persisted visual plans, deterministic Byte choreography,
+  focal-safe placement, normalized beats, reframing motion, and ranked Pexels candidates.
+- Credit-safe `TTS_MODE=live|cached` policy, cache integrity checks, TTS request observability,
+  and a controlled two-reference Byte Voice v1 stress-test command.
+- Optional `display_text`/`speech_text` fields for future pronunciation normalization without
+  changing current captions.
 - Optional ElevenLabs narration provider using the official Python SDK, configurable voice
   identity/version, safe request metadata, and bounded transient retries.
 - Offline mocked tests for ElevenLabs configuration, SDK boundary behavior, and TTS fingerprints.
@@ -25,6 +46,8 @@ in the linked records under `docs/features/`.
 
 ### Changed
 
+- Byte's selected voice is now versioned as `byte_voice_v1`; local CLI settings default to
+  `TTS_MODE=cached` so visual development cannot trigger paid narration accidentally.
 - Manual TTS provider selection now supports `elevenlabs`; SFX and music remain deferred.
 - The deterministic manual script now places Byte in two scenes with different poses while
   leaving presenter data optional for other scenes.

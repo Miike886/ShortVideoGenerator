@@ -58,6 +58,10 @@ class LocalCharacterAssetProvider:
                 "scale": scale,
                 "entrance": instruction.entrance,
                 "exit": instruction.exit,
+                "action": getattr(instruction, "action", "idle"),
+                "facing": getattr(instruction, "facing", "viewer"),
+                "motion_preset": getattr(instruction, "motion_preset", "byte_idle_hover"),
+                "beats": getattr(instruction, "beats", ()),
             }
         )
         return CharacterAssetReference(
@@ -77,6 +81,10 @@ class LocalCharacterAssetProvider:
             scale=scale,
             entrance=instruction.entrance,
             exit=instruction.exit,
+            action=getattr(instruction, "action", "idle"),
+            facing=getattr(instruction, "facing", "viewer"),
+            motion_preset=getattr(instruction, "motion_preset", "byte_idle_hover"),
+            beats=tuple(getattr(instruction, "beats", ())),
             fingerprint=fingerprint,
         )
 

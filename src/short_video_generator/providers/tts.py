@@ -35,7 +35,7 @@ class ElevenLabsTextToSpeechProvider:
         api_key: str | None,
         voice_id: str | None,
         model_id: str = "eleven_multilingual_v2",
-        voice_version: str = "byte_voice_dev_v1",
+        voice_version: str = "byte_voice_v1",
         client: object | None = None,
         max_retries: int = 2,
         voice_settings_factory: Callable[..., object] | None = None,

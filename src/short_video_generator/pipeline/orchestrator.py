@@ -3,7 +3,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from short_video_generator.contracts import CandidateInput, EditorialBrief, VideoScript
+from short_video_generator.contracts import (
+    CandidateInput,
+    EditorialBrief,
+    ScriptScene,
+    VideoScript,
+)
 from short_video_generator.domain.enums import (
     ArtifactType,
     CandidateStatus,
@@ -12,6 +17,7 @@ from short_video_generator.domain.enums import (
 )
 from short_video_generator.domain.transitions import require_transition
 from short_video_generator.pipeline.definitions import PipelineStep
+from short_video_generator.pipeline.editorial_gate import EditorialGate, EditorialGateError
 from short_video_generator.pipeline.media_workflow import NarratedMediaWorkflow
 from short_video_generator.pipeline.models import (
     ArtifactState,
@@ -41,6 +47,12 @@ class PipelineResult:
     reused: bool
 
 
+@dataclass(frozen=True, slots=True)
+class TtsReferenceResult:
+    artifact: ArtifactState
+    reused: bool
+
+
 class ManualPipeline:
     def __init__(
         self,
@@ -62,6 +74,7 @@ class ManualPipeline:
         self.validator = validator
         self.input_fingerprint = input_fingerprint
         self.steps = StepExecutor(repository)
+        self.editorial_gate = EditorialGate()
 
     def execute(self, idempotency_key: str = "manual-fixture-v1") -> PipelineResult:
         execution = self.repository.load(idempotency_key)
@@ -93,6 +106,7 @@ class ManualPipeline:
             production = self._select(execution, candidate)
             self._create_brief(execution, candidate, production)
             self._create_script(execution, production)
+            self._editorial_gate(execution, production)
             render_path = self.media_workflow.render(execution, production, work)
             self._validate(execution, production, render_path, work)
             self._enqueue_review(execution, production)
@@ -112,6 +126,70 @@ class ManualPipeline:
             self.store.cleanup_work_directory(execution.run_id)
 
         return self._result(execution, production, reused=False)
+
+    def execute_tts_reference(
+        self, idempotency_key: str, text: str
+    ) -> TtsReferenceResult:
+        """Generate or reuse one controlled narration without running visual production."""
+        execution = self.repository.load(idempotency_key)
+        if execution is None:
+            execution = self.repository.create(idempotency_key)
+            candidate = CandidateState(
+                external_id=idempotency_key,
+                canonical_url=f"https://example.test/{idempotency_key}",
+                title=idempotency_key,
+                summary=text,
+            )
+            production = ProductionState(
+                topic_candidate_id=candidate.id,
+                script=VideoScript(
+                    title=idempotency_key,
+                    hook=text,
+                    scenes=(
+                        ScriptScene(
+                            order=1,
+                            narration=text,
+                            on_screen_text=text,
+                            visual_direction="Reference narration only",
+                            duration_seconds=10,
+                            role="hook",
+                        ),
+                    ),
+                    closing=text,
+                ).model_dump(mode="json"),
+            )
+            execution.candidate = candidate
+            execution.production = production
+            execution.stats["tts_reference_text"] = text
+        elif execution.stats.get("tts_reference_text") not in {None, text}:
+            raise ValueError("TTS reference key is already associated with different text")
+        production = self._required_production(execution)
+        self.repository.save(execution)
+        existing_artifact = next(
+            (item for item in execution.artifacts if item.artifact_type == ArtifactType.VOICE),
+            None,
+        )
+        work_id = f"{execution.run_id}-tts-reference"
+        work = self.store.prepare_work_directory(work_id)
+        execution.status = RunStatus.RUNNING
+        self.repository.save(execution)
+        try:
+            artifact = self.media_workflow.generate_audio(execution, production, work)
+            execution.status = RunStatus.COMPLETED
+            self.repository.save(execution)
+        except Exception as error:
+            execution.status = RunStatus.FAILED
+            execution.error_message = str(error)
+            self.repository.save(execution)
+            raise
+        finally:
+            self.store.cleanup_work_directory(work_id)
+        return TtsReferenceResult(
+            artifact=artifact,
+            reused=existing_artifact is not None
+            and artifact.id == existing_artifact.id
+            and artifact.sha256 == existing_artifact.sha256,
+        )
 
     def _discover(self, execution: ExecutionState) -> CandidateState:
         if execution.candidate is not None:
@@ -200,6 +278,39 @@ class ManualPipeline:
             production.script = script.model_dump(mode="json")
 
         self.steps.run(execution, PipelineStep.CREATE_SCRIPT, production.id, action)
+
+    def _editorial_gate(self, execution: ExecutionState, production: ProductionState) -> None:
+        script = VideoScript.model_validate(production.script)
+        fingerprint = self.editorial_gate.fingerprint(script)
+        if self.steps.completed(
+            execution, PipelineStep.EDITORIAL_GATE, production.id, fingerprint
+        ):
+            return
+
+        def action() -> None:
+            try:
+                result = self.editorial_gate.validate(script)
+            except EditorialGateError:
+                self._transition(production, ProductionStatus.FAILED, PipelineStep.EDITORIAL_GATE)
+                self.repository.save(execution)
+                raise
+            production.current_step = PipelineStep.EDITORIAL_GATE
+            step = execution.step(PipelineStep.EDITORIAL_GATE, production.id)
+            if step is not None:
+                step.output_summary |= {
+                    "gate": self.editorial_gate.version,
+                    "passed": result.passed,
+                    "warnings": result.warnings,
+                }
+            self.repository.save(execution)
+
+        self.steps.run(
+            execution,
+            PipelineStep.EDITORIAL_GATE,
+            production.id,
+            action,
+            fingerprint,
+        )
 
     def _validate(
         self,
