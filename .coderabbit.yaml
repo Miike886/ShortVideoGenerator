@@ -9,6 +9,7 @@ reviews:
   auto_review:
     enabled: true
     auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 0
     drafts: false
   path_instructions:
     - path: "src/short_video_generator/**"
