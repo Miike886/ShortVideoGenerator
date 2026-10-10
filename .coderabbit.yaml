@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "es-ES"
+reviews:
+  profile: "chill"
+  poem: false
+  request_changes_workflow: false
+  allow_author_approval: false
+  review_status: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+  path_instructions:
+    - path: "src/short_video_generator/**"
+      instructions: |
+        Follow AGENTS.md and preserve domain, contract, pipeline and adapter boundaries.
+        Prioritize correctness, feature regressions, state transitions, fingerprints,
+        artifact integrity and idempotency over cosmetic suggestions.
+        Check that production EditorialGate failures stop before paid TTS calls.
+        Flag unnecessary paid requests, silent provider fallbacks and secret exposure.
+        Keep heavy alignment dependencies behind CaptionAlignmentProvider.
+    - path: "tests/**"
+      instructions: |
+        Require focused coverage for changed behavior, failure paths and feature regressions.
+        Use fake providers for routine tests; never require paid API credentials.
+        Check narration reuse and rejection before TTS when the affected behavior warrants it.
+    - path: "docs/**"
+      instructions: |
+        Distinguish implemented and verified behavior from plans and known limitations.
+        Keep feature records and CHANGELOG consistent with code and actual test evidence.
+    - path: "AGENTS.md"
+      instructions: |
+        Preserve local QA and mini-review before PR publication. CodeRabbit supplements
+        these checks and must not replace them or authorize automatic merge.

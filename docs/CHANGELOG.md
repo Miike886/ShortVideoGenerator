@@ -5,6 +5,12 @@ in the linked records under `docs/features/`.
 
 ## 2026-10-10
 
+### Added
+
+- Advisory CodeRabbit configuration with incremental reviews and project-specific review
+  instructions; remote integration validation remains pending.
+- Mandatory feature tests and local mini-review before PR publication in `AGENTS.md`.
+
 ### Validated
 
 - Publication checks passed: 56 tests with FFmpeg integration, architecture boundaries,

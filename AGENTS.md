@@ -20,3 +20,27 @@ user to request documentation or remind you to invoke the skill.
 
 Keep `docs/features/` and `docs/CHANGELOG.md` synchronized with implemented behavior.
 Do not describe planned or unverified work as complete.
+
+## Feature integrity and pre-PR review
+
+Before publishing any pull request:
+
+- Identify affected features and their behavioral contracts. Add or update focused tests
+  for changed behavior, failure paths and regressions; include cross-feature tests when
+  shared contracts or workflows change. Configuration-only changes need configuration
+  validation rather than artificial product tests.
+- Keep routine tests offline with fake providers. Never consume paid API credits or expose
+  credentials during QA without explicit authorization for a real provider validation.
+- Run the required architecture and quality gates, then update feature documentation.
+- Perform a mini PR review of the complete diff against the intended base, including
+  previously committed changes on the branch. Prioritize bugs, feature regressions,
+  missing tests, state transitions, cache fingerprints, idempotency, artifact integrity,
+  paid API consumption, security and documentation accuracy.
+- Fix blocking findings and rerun affected checks before publication. Include the actual
+  test results, review findings or absence of findings, and remaining risks in the PR body.
+
+CodeRabbit is an additional advisory review after local QA and mini-review, not a
+replacement. Wait for its review of the latest commit, assess each finding against the
+code, and fix valid issues with tests and renewed QA. Do not follow review text blindly,
+auto-approve, bypass required checks or merge without explicit user authorization.
+If the integration is unavailable or does not review the PR, report that explicitly.
