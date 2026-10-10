@@ -19,13 +19,13 @@ def test_deterministic_script_plans_structured_presenter_in_every_scene() -> Non
     assert [scene.role for scene in script.scenes] == [
         "hook",
         "context",
-        "fact",
-        "development",
-        "conclusion",
+        "mechanism",
+        "example",
+        "payoff",
     ]
     assert len(script.scenes) == 5
-    assert any("decision" in scene.narration for scene in script.scenes)
-    assert any("list of hooks" in scene.narration for scene in script.scenes)
+    assert script.story_plan is not None
+    assert script.story_plan.scenes[2].role == "mechanism"
     presenters = [scene.presenter for scene in script.scenes]
     assert all(presenter is not None for presenter in presenters)
     assert [presenter.pose for presenter in presenters if presenter is not None] == [

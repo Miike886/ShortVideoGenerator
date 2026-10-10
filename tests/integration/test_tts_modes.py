@@ -7,9 +7,13 @@ import pytest
 from short_video_generator.bootstrap import build_manual_pipeline
 from short_video_generator.config import Settings
 from short_video_generator.contracts import ManualProductionInput
+from short_video_generator.domain.enums import ProductionStatus, RunStatus
+from short_video_generator.persistence.database import build_engine, session_factory
+from short_video_generator.persistence.models import PipelineRunRecord, ProductionRecord
 from short_video_generator.pipeline.media_workflow import CachedNarrationError
 from short_video_generator.providers.assets import FakeAssetProvider
 from short_video_generator.providers.characters import LocalCharacterAssetProvider
+from short_video_generator.providers.deterministic import DeterministicEditorialProvider
 from short_video_generator.providers.tts import FakeTextToSpeechProvider
 
 
@@ -68,6 +72,32 @@ def test_cached_mode_rejects_corrupt_audio_file(tmp_path) -> None:
             "byte-reference-corrupt", text
         )
     assert cached_tts.calls == 0
+
+
+def test_editorial_gate_stops_before_tts(tmp_path) -> None:
+    settings = _settings(tmp_path, "live")
+    tts = FakeTextToSpeechProvider()
+    pipeline = _pipeline(settings, tts)
+    original = DeterministicEditorialProvider()
+
+    class InvalidEditorial:
+        def create_brief(self, candidate):
+            return original.create_brief(candidate)
+
+        def create_script(self, brief):
+            return original.create_script(brief).model_copy(update={"story_plan": None})
+
+    pipeline.editorial = InvalidEditorial()
+    with pytest.raises(ValueError, match="SemanticStoryPlan"):
+        pipeline.execute("editorial-gate-stop")
+    assert tts.calls == 0
+    engine = build_engine(settings)
+    with session_factory(engine)() as session:
+        run = session.query(PipelineRunRecord).one()
+        production = session.query(ProductionRecord).one()
+        assert run.status == RunStatus.FAILED
+        assert production.status == ProductionStatus.FAILED
+    engine.dispose()
 
 
 def _pipeline(settings: Settings, tts: FakeTextToSpeechProvider):

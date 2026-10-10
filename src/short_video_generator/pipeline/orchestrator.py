@@ -17,6 +17,7 @@ from short_video_generator.domain.enums import (
 )
 from short_video_generator.domain.transitions import require_transition
 from short_video_generator.pipeline.definitions import PipelineStep
+from short_video_generator.pipeline.editorial_gate import EditorialGate, EditorialGateError
 from short_video_generator.pipeline.media_workflow import NarratedMediaWorkflow
 from short_video_generator.pipeline.models import (
     ArtifactState,
@@ -73,6 +74,7 @@ class ManualPipeline:
         self.validator = validator
         self.input_fingerprint = input_fingerprint
         self.steps = StepExecutor(repository)
+        self.editorial_gate = EditorialGate()
 
     def execute(self, idempotency_key: str = "manual-fixture-v1") -> PipelineResult:
         execution = self.repository.load(idempotency_key)
@@ -104,6 +106,7 @@ class ManualPipeline:
             production = self._select(execution, candidate)
             self._create_brief(execution, candidate, production)
             self._create_script(execution, production)
+            self._editorial_gate(execution, production)
             render_path = self.media_workflow.render(execution, production, work)
             self._validate(execution, production, render_path, work)
             self._enqueue_review(execution, production)
@@ -275,6 +278,39 @@ class ManualPipeline:
             production.script = script.model_dump(mode="json")
 
         self.steps.run(execution, PipelineStep.CREATE_SCRIPT, production.id, action)
+
+    def _editorial_gate(self, execution: ExecutionState, production: ProductionState) -> None:
+        script = VideoScript.model_validate(production.script)
+        fingerprint = self.editorial_gate.fingerprint(script)
+        if self.steps.completed(
+            execution, PipelineStep.EDITORIAL_GATE, production.id, fingerprint
+        ):
+            return
+
+        def action() -> None:
+            try:
+                result = self.editorial_gate.validate(script)
+            except EditorialGateError:
+                self._transition(production, ProductionStatus.FAILED, PipelineStep.EDITORIAL_GATE)
+                self.repository.save(execution)
+                raise
+            production.current_step = PipelineStep.EDITORIAL_GATE
+            step = execution.step(PipelineStep.EDITORIAL_GATE, production.id)
+            if step is not None:
+                step.output_summary |= {
+                    "gate": self.editorial_gate.version,
+                    "passed": result.passed,
+                    "warnings": result.warnings,
+                }
+            self.repository.save(execution)
+
+        self.steps.run(
+            execution,
+            PipelineStep.EDITORIAL_GATE,
+            production.id,
+            action,
+            fingerprint,
+        )
 
     def _validate(
         self,

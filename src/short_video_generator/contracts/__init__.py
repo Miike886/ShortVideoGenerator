@@ -6,6 +6,7 @@ from .evaluation import CandidateEvaluation
 from .media import GeneratedAsset, LocalFileDraft, RenderRequest, RenderResult, VideoTemplate
 from .review import ReviewSubmission
 from .sources import CandidateInput
+from .story import SemanticScenePlan, SemanticStoryPlan, VisualConcept
 from .validation import ValidationCheck, ValidationReport
 from .visuals import ByteBeat, SceneVisualDirection, VisualSearchPlan
 
@@ -39,5 +40,8 @@ __all__ = [
     "ByteBeat",
     "SceneVisualDirection",
     "VisualSearchPlan",
+    "SemanticScenePlan",
+    "SemanticStoryPlan",
+    "VisualConcept",
 ]
 from .audio import AudioArtifactMetadata, AudioProbeResult, TextToSpeechOptions

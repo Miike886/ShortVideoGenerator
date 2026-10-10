@@ -5,6 +5,7 @@ from short_video_generator.contracts import (
     PresenterInstruction,
     SceneVisualDirection,
     ScriptScene,
+    SemanticScenePlan,
     VisualSearchPlan,
 )
 
@@ -49,7 +50,12 @@ class DeterministicVisualPlanner:
     choreography_version = "byte-choreography-v1"
     ranking_version = "visual-ranking-v1"
 
-    def plan(self, scene: ScriptScene, previous_region: str | None = None) -> SceneVisualDirection:
+    def plan(
+        self,
+        scene: ScriptScene,
+        previous_region: str | None = None,
+        semantic_scene: SemanticScenePlan | None = None,
+    ) -> SceneVisualDirection:
         purpose = {
             "hook": "establish", "context": "explain", "fact": "reveal",
             "development": "demonstrate", "payoff": "react", "conclusion": "conclude",
@@ -70,9 +76,13 @@ class DeterministicVisualPlanner:
             "compare": "present_subject", "reveal": "react_surprised", "react": "react_surprised",
             "conclude": "conclude",
         }.get(purpose, "explain")
+        if scene.role == "example":
+            action = "present_subject"
+        elif scene.role == "payoff":
+            action = "conclude"
         if scene.role == "context":
             action = "think"
-        if scene.role == "payoff" and ("why" in text or "por qué" in text or "question" in text):
+        if scene.role == "payoff" and scene.narration.lstrip().startswith(("Why ", "¿")):
             action = "question"
         if focal in {"center_right", "upper_right", "lower_right"}:
             facing = "right"
@@ -90,9 +100,17 @@ class DeterministicVisualPlanner:
             beats = (ByteBeat(progress=0.62, action="present_subject", target_direction=facing),)
         elif action == "react_surprised":
             beats = (ByteBeat(progress=0.58, action="react_surprised", target_direction="viewer"),)
+        concept = semantic_scene.visual_concept if semantic_scene is not None else None
+        subject = concept.subject if concept is not None else scene.visual_direction.strip()
+        action_text = concept.observable_action if concept is not None else ""
+        primary_query = (
+            f"{subject} {action_text}".strip()
+            if concept is not None
+            else scene.visual_query.strip() or subject
+        )
         return SceneVisualDirection(
             purpose=purpose,
-            subject=scene.visual_direction.strip(),
+            subject=subject,
             focal_region=focal,
             composition="compare_sides" if comparison else "support_subject",
             motion="slow_zoom_in" if scene.order % 2 else "pan_right",
@@ -103,11 +121,18 @@ class DeterministicVisualPlanner:
             exit="none",
             beats=beats,
             search=VisualSearchPlan(
-                primary_query=scene.visual_query.strip() or scene.visual_direction.strip(),
-                alternatives=(scene.visual_direction.strip(),),
-                avoid_terms=("abstract AI", "business meeting"),
+                primary_query=primary_query,
+                alternatives=(subject, action_text) if action_text else (subject,),
+                avoid_terms=(
+                    concept.avoid_concepts
+                    if concept is not None
+                    else ("abstract AI", "business meeting")
+                ),
                 preferred_media="either",
                 visual_intent=purpose,
+                visual_subject=subject,
+                observable_action=action_text,
+                scene_role=scene.role,
             ),
         )
 

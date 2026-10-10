@@ -34,9 +34,11 @@ def test_editorial_output_is_stable_and_contract_valid() -> None:
     assert [scene.role for scene in script.scenes] == [
         "hook",
         "context",
-        "fact",
-        "development",
-        "conclusion",
+        "mechanism",
+        "example",
+        "payoff",
     ]
     assert all(scene.presenter is not None for scene in script.scenes)
+    assert script.story_plan is not None
+    assert not script.story_plan.redundancy_warnings()
     assert script.duration_seconds == 30

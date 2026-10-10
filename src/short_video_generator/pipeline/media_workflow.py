@@ -611,8 +611,13 @@ class NarratedMediaWorkflow:
 def _visual_plans(script: VideoScript, planner: DeterministicVisualPlanner) -> dict[int, object]:
     plans = {}
     previous_region = None
+    semantic_scenes = (
+        {scene.order: scene for scene in script.story_plan.scenes}
+        if script.story_plan is not None
+        else {}
+    )
     for scene in script.scenes:
-        plan = planner.plan(scene, previous_region)
+        plan = planner.plan(scene, previous_region, semantic_scenes.get(scene.order))
         plans[scene.order] = plan
         previous_region = plan.byte_region
     return plans

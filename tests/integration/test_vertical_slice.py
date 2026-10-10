@@ -78,12 +78,13 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         assert session.scalar(select(func.count()).select_from(PipelineRunRecord)) == 1
         assert session.scalar(select(func.count()).select_from(TopicCandidateRecord)) == 1
         assert session.scalar(select(func.count()).select_from(ProductionRecord)) == 1
-        assert session.scalar(select(func.count()).select_from(StepRunRecord)) == 14
+        assert session.scalar(select(func.count()).select_from(StepRunRecord)) == 15
         assert session.scalar(select(func.count()).select_from(ArtifactRecord)) == 13
         assert set(session.scalars(select(StepRunRecord.status))) == {StepStatus.COMPLETED}
         step_records = session.scalars(select(StepRunRecord)).all()
         fingerprinted_steps = {
             "generate_audio",
+            "editorial_gate",
             "plan_timeline",
             "resolve_presenters",
             "generate_assets",
@@ -114,9 +115,9 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         assert [scene["role"] for scene in production.script["scenes"]] == [
             "hook",
             "context",
-            "fact",
-            "development",
-            "conclusion",
+            "mechanism",
+            "example",
+            "payoff",
         ]
         presenters = [
             scene["presenter"]
@@ -136,7 +137,6 @@ def test_complete_vertical_slice_is_idempotent_and_reviewable(tmp_path) -> None:
         assert {item["pose"] for item in presenter_refs} == {
             "explaining",
             "thinking",
-            "surprised",
             "pointing_left",
             "happy",
         }

@@ -45,6 +45,9 @@ class VisualSearchPlan(Contract):
     avoid_terms: tuple[str, ...] = ()
     preferred_media: MediaPreference = "either"
     visual_intent: VisualPurpose = "explain"
+    visual_subject: str = ""
+    observable_action: str = ""
+    scene_role: str = ""
 
 
 class SceneVisualDirection(Contract):

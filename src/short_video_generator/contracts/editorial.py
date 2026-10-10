@@ -4,8 +4,12 @@ from pydantic import Field, model_validator
 
 from .characters import PresenterInstruction
 from .common import Contract
+from .story import SemanticStoryPlan
 
-SceneRole = Literal["hook", "context", "fact", "development", "payoff", "conclusion"]
+SceneRole = Literal[
+    "hook", "context", "fact", "development", "payoff", "conclusion", "mechanism",
+    "example", "evidence", "contrast", "implication", "cta",
+]
 
 
 class EditorialBrief(Contract):
@@ -46,6 +50,7 @@ class VideoScript(Contract):
     hook: str = Field(min_length=1, max_length=500)
     scenes: tuple[ScriptScene, ...] = Field(min_length=1, max_length=10)
     closing: str = Field(min_length=1, max_length=500)
+    story_plan: SemanticStoryPlan | None = None
 
     @model_validator(mode="after")
     def scene_order_is_contiguous(self) -> "VideoScript":

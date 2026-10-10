@@ -7,6 +7,7 @@ from short_video_generator.contracts import (
     ScriptScene,
     VideoScript,
 )
+from short_video_generator.pipeline.story import DeterministicStoryPlanner
 
 
 class FixtureSourceProvider:
@@ -46,34 +47,7 @@ class DeterministicEditorialProvider:
         )
 
     def create_script(self, brief: EditorialBrief) -> VideoScript:
-        if self.language.lower().startswith("es"):
-            narrations = (
-                f"{brief.topic} no es solo una idea llamativa.",
-                f"En la practica, {brief.topic} importa porque cambia como se entiende "
-                "el problema.",
-                brief.key_points[0],
-                "La parte util aparece cuando esa explicacion se conecta con una "
-                "decision concreta.",
-                f"Por eso {brief.topic} funciona mejor como una historia clara que como "
-                "una lista de ganchos.",
-            )
-        else:
-            narrations = (
-                f"{brief.topic} is not just a catchy idea.",
-                f"In practice, {brief.topic} matters because it changes how the problem "
-                "is understood.",
-                brief.key_points[0],
-                "The useful part appears when that explanation connects to a concrete decision.",
-                f"That is why {brief.topic} works better as a clear story than as a list of hooks.",
-            )
-        visual_queries = (
-            f"{brief.topic} social media hook",
-            f"{brief.topic} context explanation",
-            f"{brief.topic} factual detail",
-            f"{brief.topic} practical decision",
-            f"{brief.topic} clear conclusion",
-        )
-        roles = ("hook", "context", "fact", "development", "conclusion")
+        story = DeterministicStoryPlanner().create(brief)
         poses = ("explaining", "thinking", "surprised", "pointing_left", "happy")
         positions = (
             "bottom_right",
@@ -82,27 +56,31 @@ class DeterministicEditorialProvider:
             "bottom_right",
             "bottom_left",
         )
-        scene_duration = self.target_duration_seconds / len(narrations)
+        scene_duration = self.target_duration_seconds / len(story.scenes)
         return VideoScript(
             title=brief.topic,
             hook=brief.promise,
             scenes=tuple(
                 ScriptScene(
-                    order=index,
-                    narration=narration,
-                    on_screen_text=(brief.topic if index == 1 else narration[:120]),
-                    visual_direction="Full-frame visual asset with readable caption",
-                    visual_query=visual_queries[index - 1],
+                    order=scene.order,
+                    narration=scene.narration,
+                    on_screen_text=(brief.topic if scene.order == 1 else scene.narration[:120]),
+                    visual_direction=(
+                        f"{scene.visual_concept.subject}; "
+                        f"{scene.visual_concept.observable_action}"
+                    ),
+                    visual_query="",
                     duration_seconds=scene_duration,
                     presenter=PresenterInstruction(
                         character_id=self.character_id,
-                        pose=poses[index - 1],
-                        position=positions[index - 1],
-                        scale=0.32 if index in {1, 3} else 0.3,
+                        pose=poses[scene.order - 1],
+                        position=positions[scene.order - 1],
+                        scale=0.32 if scene.order in {1, 3} else 0.3,
                     ),
-                    role=roles[index - 1],
+                    role=scene.role,
                 )
-                for index, narration in enumerate(narrations, start=1)
+                for scene in story.scenes
             ),
-            closing=narrations[-1],
+            closing=story.scenes[-1].narration,
+            story_plan=story,
         )
