@@ -5,8 +5,16 @@ in the linked records under `docs/features/`.
 
 ## 2026-10-10
 
+### Added
+
+- Advisory CodeRabbit configuration with incremental reviews and project-specific review
+  instructions; manual review verified on PR #8, with service-side automatic-review limits.
+- Risk-appropriate feature tests and local mini-review before PR publication in `AGENTS.md`.
+
 ### Validated
 
+- CodeRabbit completed its initial review with two minor findings, corrected by disabling
+  commit-count pausing and clarifying risk-appropriate tests; follow-up remote review pending.
 - Publication checks passed: 56 tests with FFmpeg integration, architecture boundaries,
   Ruff, lockfile and Git whitespace checks; two upstream deprecation warnings remain.
 - Re-rendered a local preview using cached real narration, Pexels clips and Byte assets;

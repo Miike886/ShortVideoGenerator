@@ -6,6 +6,7 @@ deferred.
 
 | Date | Phase | Status |
 | --- | --- | --- |
+| 2026-10-10 | [CodeRabbit advisory review workflow](2026-10-10-coderabbit-review-workflow.md) | Initial manual review verified; follow-up review pending |
 | 2026-09-06 | [Editorial Gate](2026-09-06-editorial-gate.md) | Implemented; rejects invalid stories before TTS |
 | 2026-09-06 | [Semantic story planning](2026-09-06-semantic-story-planning.md) | Implemented; deterministic progression and concrete visual concepts |
 | 2026-09-06 | [Interactive visual storytelling](2026-09-06-interactive-visual-storytelling.md) | Implemented; deterministic visual direction and Byte choreography |
